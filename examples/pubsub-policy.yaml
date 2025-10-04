@@ -1,0 +1,21 @@
+---
+apiVersion: casbin.grepplabs.com/v1alpha1
+kind: Rule
+metadata:
+  name: pubsub-publish
+spec:
+  ptype: "p"
+  v0: "iam:eu-central-1:123456789012:sa/9e4fdb1c-3345-4c07-98d9-73b993c9dd42"
+  v1: "pubsub:eu-central-1:123456789012:topics/orders"
+  v2: "pubsub:publish"
+
+---
+apiVersion: casbin.grepplabs.com/v1alpha1
+kind: Rule
+metadata:
+  name: pubsub-read
+spec:
+  ptype: "p"
+  v0: "iam:eu-central-1:123456789012:sa/9e4fdb1c-3345-4c07-98d9-73b993c9dd42"
+  v1: "pubsub:eu-central-1:123456789012:topics/orders/subscriptions/order-updates"
+  v2: "pubsub:read"

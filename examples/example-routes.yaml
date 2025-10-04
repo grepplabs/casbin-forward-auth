@@ -1,0 +1,18 @@
+routes:
+  - httpMethod: GET
+    relativePath: /user/:id
+    params:
+      - name: id
+        source: path
+      - name: q
+        source: query
+        default: test1
+      - name: X-User
+        source: header
+        default: test2
+    rules:
+      - format: iam:users:%s:scope:%s
+        paramNames: [ id, q ]
+      - format: scope:%s
+        paramNames: [ q ]
+      - format: iam:read

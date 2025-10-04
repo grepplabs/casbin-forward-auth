@@ -28,5 +28,15 @@ go.work.sum
 .env
 
 # Editor/IDE
-# .idea/
-# .vscode/
+.vscode/
+/.idea/
+*.iws
+*.iml
+*.ipr
+
+
+/bin
+# Added by goreleaser init:
+dist/
+
+/casbin-traefik-forward-auth

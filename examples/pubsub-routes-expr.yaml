@@ -1,0 +1,53 @@
+routes:
+  - httpMethod: POST
+    relativePaths:
+      - /v1alpha/publish
+    params:
+      - name: topicId
+        source: header
+        expr: Host
+        function: firstLabel
+      - name: projectId
+        source: claim
+        expr: acme/project/project\.id
+      - name: sub
+        source: claim
+        expr: sub
+      - name: iss
+        source: claim
+        expr: iss
+    rules:
+      - cases:
+          - when: '!equal(iss, "acme/serviceaccount")'
+            format: iam:eu-central-1:%s:user/%s
+            paramNames: [ projectId, sub ]
+          - when: 'equal(iss, "acme/serviceaccount")'
+            format: iam:eu-central-1:%s:sa/%s
+            paramNames: [ projectId, sub ]
+      - format: pubsub:eu-central-1:%s:topics/%s
+        paramNames: [ projectId, topicId ]
+      - format: pubsub:publish
+  - httpMethod: POST
+    relativePaths:
+    - /v1alpha/subscriptions/:subscriptionId/pull
+    - /v1alpha/subscriptions/:subscriptionId/ack
+    - /v1alpha/subscriptions/:subscriptionId/nack
+    params:
+      - name: topicId
+        source: header
+        expr: Host
+        function: firstLabel
+      - name: projectId
+        source: claim
+        expr: acme/project/project\.id
+      - name: sub
+        source: claim
+        expr: sub
+      - name: subscriptionId
+        source: path
+    rules:
+      - format: iam:eu-central-1:%s:sa/%s
+        paramNames: [ projectId, sub ]
+      - format: pubsub:eu-central-1:%s:topics/%s/subscriptions/%s
+        paramNames: [ projectId, topicId, subscriptionId ]
+      - format: pubsub:read

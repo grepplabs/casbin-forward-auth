@@ -1,0 +1,116 @@
+package server
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"os"
+
+	"github.com/gin-gonic/gin"
+	"github.com/grepplabs/casbin-traefik-forward-auth/internal/auth"
+	"github.com/grepplabs/loggo/zlog"
+	"gopkg.in/yaml.v3"
+
+	"github.com/grepplabs/casbin-traefik-forward-auth/internal/config"
+)
+
+const (
+	HeaderForwardedMethod = "X-Forwarded-Method"
+	HeaderForwardedProto  = "X-Forwarded-Proto"
+	HeaderForwardedHost   = "X-Forwarded-Host"
+	HeaderForwardedURI    = "X-Forwarded-Uri"
+	HeaderForwardedFor    = "X-Forwarded-For"
+	HeaderHost            = "Host"
+)
+
+func Start(cfg config.Config) error {
+	gin.SetMode(gin.ReleaseMode)
+	engine := gin.Default()
+
+	authEngine := gin.Default()
+
+	enforcer, err := newLifecycleEnforcer(&cfg.Casbin)
+	if err != nil {
+		return fmt.Errorf("could not create enforcer: %w", err)
+	}
+	defer enforcer.Close()
+
+	routeConfig, err := loadRouteConfig(cfg.Auth.RouteConfigPath)
+	if err != nil {
+		return fmt.Errorf("error loading route config: %w", err)
+	}
+	auth.SetupRoutes(authEngine, routeConfig.Routes, enforcer.SyncedEnforcer)
+
+	engine.GET("/auth", func(c *gin.Context) {
+		reason, err := forwardAuth(c, authEngine)
+		if err == nil {
+			c.String(http.StatusOK, reason)
+			return
+		}
+		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+	})
+
+	zlog.Infof("starting enforcer")
+	err = enforcer.Start(context.Background())
+	if err != nil {
+		return fmt.Errorf("error starting enforcer: %w", err)
+	}
+
+	zlog.Infof("starting server on %s", cfg.Server.Addr)
+	return engine.Run(cfg.Server.Addr)
+}
+
+func loadRouteConfig(path string) (*auth.RouteConfig, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var cfg auth.RouteConfig
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return nil, err
+	}
+	//TODO: validate
+
+	return &cfg, nil
+}
+
+func forwardAuth(c *gin.Context, authEngine *gin.Engine) (string, error) {
+	forwardedUri := c.GetHeader(HeaderForwardedURI)
+	forwardedMethod := c.GetHeader(HeaderForwardedMethod)
+	forwardedHost := c.GetHeader(HeaderForwardedHost)
+	if forwardedUri == "" || forwardedMethod == "" || forwardedHost == "" {
+		return "", errors.New("missing auth headers")
+	}
+	lw := zlog.Logger.WithValues("method", forwardedMethod, "host", forwardedHost, "uri", forwardedUri)
+	lw.V(1).Info("forward auth")
+
+	req, err := http.NewRequest(forwardedMethod, forwardedUri, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create request: %w", err)
+	}
+	// copy all headers
+	for key, values := range c.Request.Header {
+		for _, value := range values {
+			req.Header.Add(key, value)
+		}
+	}
+	// delete traefik headers
+	req.Header.Del(HeaderForwardedMethod)
+	req.Header.Del(HeaderForwardedProto)
+	req.Header.Del(HeaderForwardedHost)
+	req.Header.Del(HeaderForwardedURI)
+	req.Header.Del(HeaderForwardedFor)
+
+	// set original host
+	req.Header.Set(HeaderHost, forwardedHost)
+
+	w := httptest.NewRecorder()
+	authEngine.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		lw.V(1).Info("forward auth rejected", "code", w.Code)
+		return "", errors.New(w.Body.String())
+	}
+	return w.Body.String(), nil
+}
