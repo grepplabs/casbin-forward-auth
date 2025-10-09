@@ -8,18 +8,19 @@ import (
 
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
+	"github.com/pkg/errors"
 )
 
 var (
 	whenProgCache sync.Map // map[string]*vm.vm
 
 	baseWhenEnv = map[string]any{
-		"hasPrefix": fnHasPrefix,
-		"hasSuffix": fnHasSuffix,
-		"contains":  fnContains,
-		"equalFold": fnEqualFold,
-		"equal":     fnEqual,
-		"match":     fnMatch,
+		"hasPrefix":        fnHasPrefix,
+		"hasSuffix":        fnHasSuffix,
+		"contains":         fnContains,
+		"equalsIgnoreCase": fnEqualsIgnoreCase,
+		"equals":           fnEquals,
+		"match":            fnMatch,
 	}
 )
 
@@ -37,15 +38,18 @@ func formatRule(format string, names []string, paramValues map[string]string) (s
 		if len(args) == 1 {
 			format = "%s"
 		} else {
-			return "", fmt.Errorf("missing rule format")
+			return "", errors.New("missing rule format")
 		}
 	}
 	return fmt.Sprintf(format, args...), nil
 }
 
 func compileWhen(exprText string) (*vm.Program, error) {
-	if prog, ok := whenProgCache.Load(exprText); ok {
-		return prog.(*vm.Program), nil
+	if v, ok := whenProgCache.Load(exprText); ok {
+		if prog, ok := v.(*vm.Program); ok {
+			return prog, nil
+		}
+		return nil, fmt.Errorf("unexpected type in cache for %q: %T", exprText, v)
 	}
 	prog, err := expr.Compile(
 		exprText,
@@ -78,7 +82,7 @@ func evalWhen(when string, params map[string]string) (bool, error) {
 	// fast-path
 	switch when {
 	case "":
-		return false, fmt.Errorf("missing when")
+		return false, errors.New("missing when")
 	case "true":
 		return true, nil
 	case "false":
@@ -97,68 +101,72 @@ func evalWhen(when string, params map[string]string) (bool, error) {
 
 	b, ok := out.(bool)
 	if !ok {
-		return false, fmt.Errorf("when expression did not return bool")
+		return false, errors.New("when expression did not return bool")
 	}
 	return b, nil
 }
 
 var fnHasPrefix = func(params ...any) (any, error) {
-	if len(params) != 2 {
-		return false, fmt.Errorf("hasPrefix(s, prefix) expects 2 args")
+	s, prefix, err := twoStrings("hasPrefix", "(s, prefix)", params...)
+	if err != nil {
+		return false, err
 	}
-	s, _ := params[0].(string)
-	prefix, _ := params[1].(string)
 	return strings.HasPrefix(s, prefix), nil
 }
 
 var fnHasSuffix = func(params ...any) (any, error) {
-	if len(params) != 2 {
-		return false, fmt.Errorf("hasSuffix(s, suffix) expects 2 args")
+	s, suffix, err := twoStrings("hasSuffix", "(s, suffix)", params...)
+	if err != nil {
+		return false, err
 	}
-	s, _ := params[0].(string)
-	suffix, _ := params[1].(string)
 	return strings.HasSuffix(s, suffix), nil
 }
 
 var fnContains = func(params ...any) (any, error) {
-	if len(params) != 2 {
-		return false, fmt.Errorf("contains(s, sub) expects 2 args")
+	s, sub, err := twoStrings("contains", "(s, sub)", params...)
+	if err != nil {
+		return false, err
 	}
-	s, _ := params[0].(string)
-	sub, _ := params[1].(string)
 	return strings.Contains(s, sub), nil
 }
 
-var fnEqualFold = func(params ...any) (any, error) {
-	if len(params) != 2 {
-		return false, fmt.Errorf("equalFold(a, b) expects 2 args")
+var fnEqualsIgnoreCase = func(params ...any) (any, error) {
+	a, b, err := twoStrings("equalsIgnoreCase", "(a, b)", params...)
+	if err != nil {
+		return false, err
 	}
-	a, _ := params[0].(string)
-	b, _ := params[1].(string)
 	return strings.EqualFold(a, b), nil
 }
 
-var fnEqual = func(params ...any) (any, error) {
-	if len(params) != 2 {
-		return false, fmt.Errorf("equal(a, b) expects 2 args")
-	}
-	a, ok1 := params[0].(string)
-	b, ok2 := params[1].(string)
-	if !ok1 || !ok2 {
-		return false, fmt.Errorf("equal(a, b) expects string args")
+var fnEquals = func(params ...any) (any, error) {
+	a, b, err := twoStrings("equals", "(a, b)", params...)
+	if err != nil {
+		return false, err
 	}
 	return a == b, nil
 }
 
 var fnMatch = func(params ...any) (any, error) {
-	if len(params) != 2 {
-		return false, fmt.Errorf("match(s, re) expects 2 args")
-	}
-	s, _ := params[0].(string)
-	re, _ := params[1].(string)
-	ok, err := regexp.MatchString(re, s)
+	s, re, err := twoStrings("match", "(s, re)", params...)
 	if err != nil {
 		return false, err
 	}
+	ok, e := regexp.MatchString(re, s)
+	if e != nil {
+		return false, e
+	}
 	return ok, nil
+}
+
+// twoStrings: enforce 2 args and both strings
+func twoStrings(fname, sig string, params ...any) (string, string, error) {
+	if len(params) != 2 {
+		return "", "", fmt.Errorf("%s %s expects 2 args", fname, sig)
+	}
+	a, ok1 := params[0].(string)
+	b, ok2 := params[1].(string)
+	if !ok1 || !ok2 {
+		return "", "", fmt.Errorf("%s %s expects string args", fname, sig)
+	}
+	return a, b, nil
 }

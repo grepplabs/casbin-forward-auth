@@ -14,7 +14,7 @@ routes:
         source: claim
         expr: sub
     rules:
-      - format: iam:eu-central-1:%s:sa/%s
+      - format: iam::%s:sa/%s
         paramNames: [ projectId, sub ]
       - format: pubsub:eu-central-1:%s:topics/%s
         paramNames: [ projectId, topicId ]
@@ -39,7 +39,7 @@ routes:
       - name: subscriptionId
         source: path
     rules:
-      - format: iam:eu-central-1:%s:sa/%s
+      - format: iam::%s:sa/%s
         paramNames: [ projectId, sub ]
       - format: pubsub:eu-central-1:%s:topics/%s/subscriptions/%s
         paramNames: [ projectId, topicId, subscriptionId ]

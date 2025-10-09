@@ -1,7 +1,9 @@
+// nolint: funlen
 package auth
 
 import (
 	"encoding/base64"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -11,6 +13,517 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestGetValue_URL(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	type tc struct {
+		name   string
+		rawURL string
+		param  ParamConfig
+		want   string
+	}
+
+	tests := []tc{
+		{
+			name:   "full URL without query is returned",
+			rawURL: "https://example.com/api/v1/devices/42?limit=10&offset=2",
+			param: ParamConfig{
+				Source: ParamSourceURL,
+				Name:   "url",
+			},
+			want: "https://example.com/api/v1/devices/42",
+		},
+		{
+			name:   "url with no query stays the same",
+			rawURL: "https://example.com/plain/path",
+			param: ParamConfig{
+				Source: ParamSourceURL,
+				Name:   "url",
+			},
+			want: "https://example.com/plain/path",
+		},
+		{
+			name:   "default is not used because URL is never empty",
+			rawURL: "https://example.com/x",
+			param: ParamConfig{
+				Source:  ParamSourceURL,
+				Name:    "url",
+				Default: "should-not-be-used",
+			},
+			want: "https://example.com/x",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := ctxWithURL(t, "GET", tt.rawURL)
+			got, err := getValue(c, tt.param)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestGetValue_URLPath(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	type tc struct {
+		name   string
+		rawURL string
+		param  ParamConfig
+		want   string
+	}
+
+	tests := []tc{
+		{
+			name:   "returns only the path, ignores query",
+			rawURL: "https://example.com/api/v1/projects/abc-123/items?foo=bar",
+			param: ParamConfig{
+				Source: ParamSourceURLPath,
+				Name:   "urlPath",
+			},
+			want: "/api/v1/projects/abc-123/items",
+		},
+		{
+			name:   "root path",
+			rawURL: "https://example.com/",
+			param: ParamConfig{
+				Source: ParamSourceURLPath,
+				Name:   "urlPath",
+			},
+			want: "/",
+		},
+		{
+			name:   "root path for empty path",
+			rawURL: "https://example.com",
+			param: ParamConfig{
+				Source: ParamSourceURLPath,
+				Name:   "urlPath",
+			},
+			want: "/",
+		},
+		{
+			name:   "no default used for non-empty path",
+			rawURL: "https://example.com/a/b",
+			param: ParamConfig{
+				Source:  ParamSourceURLPath,
+				Name:    "urlPath",
+				Default: "/should/not/use",
+			},
+			want: "/a/b",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := ctxWithURL(t, "GET", tt.rawURL)
+			got, err := getValue(c, tt.param)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestGetValue_Path(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	type tc struct {
+		name    string
+		key     string
+		val     string
+		param   ParamConfig
+		want    string
+		wantErr string
+	}
+
+	tests := []tc{
+		{
+			name: "id present",
+			key:  "id",
+			val:  "42",
+			param: ParamConfig{
+				Source: ParamSourcePath,
+				Name:   "id",
+			},
+			want: "42",
+		},
+		{
+			name: "uses Default when empty in path",
+			key:  "role",
+			val:  "",
+			param: ParamConfig{
+				Source:  ParamSourcePath,
+				Name:    "role",
+				Default: "guest",
+			},
+			want: "guest",
+		},
+		{
+			name: "value missing when not provided and no default",
+			key:  "",
+			val:  "",
+			param: ParamConfig{
+				Source: ParamSourcePath,
+				Name:   "unknown",
+			},
+			wantErr: "value missing unknown",
+		},
+		{
+			name: "empty without default -> error",
+			key:  "empty",
+			val:  "",
+			param: ParamConfig{
+				Source: ParamSourcePath,
+				Name:   "empty",
+			},
+			wantErr: "value missing empty",
+		},
+		{
+			name: "Expr overrides Name when set",
+			key:  "project_id",
+			val:  "abc-123",
+			param: ParamConfig{
+				Source: ParamSourcePath,
+				Name:   "ignoredName",
+				Expr:   "project_id",
+			},
+			want: "abc-123",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := ctxWithPathParam(t, tt.key, tt.val)
+			got, err := getValue(c, tt.param)
+
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Equal(t, tt.wantErr, err.Error())
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestGetValue_Query(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	type tc struct {
+		name    string
+		rawQ    string
+		param   ParamConfig
+		want    string
+		wantErr string
+	}
+
+	tests := []tc{
+		{
+			name: "simple present",
+			rawQ: "id=42",
+			param: ParamConfig{
+				Source: ParamSourceQuery,
+				Name:   "id",
+			},
+			want: "42",
+		},
+		{
+			name: "missing -> error",
+			rawQ: "",
+			param: ParamConfig{
+				Source: ParamSourceQuery,
+				Name:   "id",
+			},
+			wantErr: "value missing id",
+		},
+		{
+			name: "empty value uses Default",
+			rawQ: "role=",
+			param: ParamConfig{
+				Source:  ParamSourceQuery,
+				Name:    "role",
+				Default: "guest",
+			},
+			want: "guest",
+		},
+		{
+			name: "empty value without default -> error",
+			rawQ: "token=",
+			param: ParamConfig{
+				Source: ParamSourceQuery,
+				Name:   "token",
+			},
+			wantErr: "value missing token",
+		},
+		{
+			name: "Expr overrides Name",
+			rawQ: "project_id=abc-123",
+			param: ParamConfig{
+				Source: ParamSourceQuery,
+				Name:   "ignored",
+				Expr:   "project_id", // assumes ParamConfig.Key() prefers Expr
+			},
+			want: "abc-123",
+		},
+		{
+			name: "multiple values -> first one is used",
+			rawQ: "id=first&id=second",
+			param: ParamConfig{
+				Source: ParamSourceQuery,
+				Name:   "id",
+			},
+			want: "first",
+		},
+		{
+			name: "key with dot is literal (not path expr)",
+			rawQ: "user.name=mike",
+			param: ParamConfig{
+				Source: ParamSourceQuery,
+				Name:   "user.name",
+			},
+			want: "mike",
+		},
+		{
+			name: "URL encoded value",
+			rawQ: "q=hello%20world",
+			param: ParamConfig{
+				Source: ParamSourceQuery,
+				Name:   "q",
+			},
+			want: "hello world",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := ctxWithQuery(t, tt.rawQ)
+			got, err := getValue(c, tt.param)
+
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Equal(t, tt.wantErr, err.Error())
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestGetValue_Header(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	type tc struct {
+		name    string
+		build   func(*map[string][]string)
+		param   ParamConfig
+		want    string
+		wantErr string
+	}
+
+	tests := []tc{
+		{
+			name: "simple present",
+			build: func(h *map[string][]string) {
+				(*h)["X-Request-ID"] = []string{"abc-123"}
+			},
+			param: ParamConfig{
+				Source: ParamSourceHeader,
+				Name:   "X-Request-ID",
+			},
+			want: "abc-123",
+		},
+		{
+			name: "case-insensitive header name",
+			build: func(h *map[string][]string) {
+				(*h)["x-request-id"] = []string{"lower-ok"}
+			},
+			param: ParamConfig{
+				Source: ParamSourceHeader,
+				Name:   "X-Request-ID",
+			},
+			want: "lower-ok",
+		},
+		{
+			name:  "missing -> error",
+			build: func(h *map[string][]string) {},
+			param: ParamConfig{
+				Source: ParamSourceHeader,
+				Name:   "X-Api-Key",
+			},
+			wantErr: "value missing X-Api-Key",
+		},
+		{
+			name: "empty value uses Default",
+			build: func(h *map[string][]string) {
+				(*h)["X-Role"] = []string{""}
+			},
+			param: ParamConfig{
+				Source:  ParamSourceHeader,
+				Name:    "X-Role",
+				Default: "guest",
+			},
+			want: "guest",
+		},
+		{
+			name: "empty without default -> error",
+			build: func(h *map[string][]string) {
+				(*h)["X-Token"] = []string{""}
+			},
+			param: ParamConfig{
+				Source: ParamSourceHeader,
+				Name:   "X-Token",
+			},
+			wantErr: "value missing X-Token",
+		},
+		{
+			name: "multiple values -> first one is used",
+			build: func(h *map[string][]string) {
+				(*h)["X-Env"] = []string{"prod", "staging"}
+			},
+			param: ParamConfig{
+				Source: ParamSourceHeader,
+				Name:   "X-Env",
+			},
+			want: "prod",
+		},
+		{
+			name: "Expr overrides Name",
+			build: func(h *map[string][]string) {
+				(*h)["X-Project-ID"] = []string{"p-001"}
+			},
+			param: ParamConfig{
+				Source: ParamSourceHeader,
+				Name:   "Ignored-Name",
+				Expr:   "X-Project-ID", // assumes ParamConfig.Key() prefers Expr
+			},
+			want: "p-001",
+		},
+		{
+			name: "header with dashes and dots literal",
+			build: func(h *map[string][]string) {
+				(*h)["X-User.Name"] = []string{"mike"}
+			},
+			param: ParamConfig{
+				Source: ParamSourceHeader,
+				Name:   "X-User.Name",
+			},
+			want: "mike",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := ctxWithHeaders(t, tt.build)
+			got, err := getValue(c, tt.param)
+
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Equal(t, tt.wantErr, err.Error())
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestGetValue_BasicAuthUser(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	type tc struct {
+		name    string
+		user    string
+		pass    string
+		with    bool
+		param   ParamConfig
+		want    string
+		wantErr string
+	}
+
+	tests := []tc{
+		{
+			name: "valid basic auth user extracted",
+			user: "michal",
+			pass: "secret",
+			with: true,
+			param: ParamConfig{
+				Source: ParamSourceBasicAuthUser,
+				Name:   "username",
+			},
+			want: "michal",
+		},
+		{
+			name: "missing auth -> error",
+			with: false,
+			param: ParamConfig{
+				Source: ParamSourceBasicAuthUser,
+				Name:   "username",
+			},
+			wantErr: "value missing username",
+		},
+		{
+			name: "empty username with default fallback",
+			user: "",
+			pass: "nopass",
+			with: true,
+			param: ParamConfig{
+				Source:  ParamSourceBasicAuthUser,
+				Name:    "username",
+				Default: "guest",
+			},
+			want: "guest",
+		},
+		{
+			name: "empty username without default -> error",
+			user: "",
+			pass: "nopass",
+			with: true,
+			param: ParamConfig{
+				Source: ParamSourceBasicAuthUser,
+				Name:   "username",
+			},
+			wantErr: "value missing username",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := ctxWithBasicAuth(t, tt.user, tt.pass, tt.with)
+			got, err := getValue(c, tt.param)
+
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Equal(t, tt.wantErr, err.Error())
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestGetValue_UnknownSource(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	param := ParamConfig{
+		Source: "not_a_real_source",
+		Name:   "foo",
+	}
+
+	c := ctxEmpty(t)
+	got, err := getValue(c, param)
+
+	require.Error(t, err)
+	assert.Empty(t, got)
+	assert.Equal(t, "unknown source for not_a_real_source", err.Error())
+}
+
 func TestClaimsJSONFromAuthHeader(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -19,10 +532,10 @@ func TestClaimsJSONFromAuthHeader(t *testing.T) {
 	validJWT := "hdr." + payloadB64 + ".sig"
 
 	tests := []struct {
-		name        string
-		auth        string
-		want        string
-		wantErrPart string
+		name    string
+		auth    string
+		want    string
+		wantErr string
 	}{
 		{
 			name: "ok - proper Bearer with valid JWT",
@@ -35,34 +548,34 @@ func TestClaimsJSONFromAuthHeader(t *testing.T) {
 			want: claims,
 		},
 		{
-			name:        "error - missing header",
-			auth:        "",
-			wantErrPart: "missing or non-bearer",
+			name:    "error - missing header",
+			auth:    "",
+			wantErr: "missing or non-bearer",
 		},
 		{
-			name:        "error - non-bearer scheme",
-			auth:        "Basic abc",
-			wantErrPart: "missing or non-bearer",
+			name:    "error - non-bearer scheme",
+			auth:    "Basic abc",
+			wantErr: "missing or non-bearer",
 		},
 		{
-			name:        "error - 'Bearer' without space or token",
-			auth:        "Bearer",
-			wantErrPart: "missing or non-bearer",
+			name:    "error - 'Bearer' without space or token",
+			auth:    "Bearer",
+			wantErr: "missing or non-bearer",
 		},
 		{
-			name:        "error - 'Bearer ' but no token",
-			auth:        "Bearer ",
-			wantErrPart: "invalid JWT format",
+			name:    "error - 'Bearer ' but no token",
+			auth:    "Bearer ",
+			wantErr: "invalid JWT format",
 		},
 		{
-			name:        "error - token without dot",
-			auth:        "Bearer notajwt",
-			wantErrPart: "invalid JWT format",
+			name:    "error - token without dot",
+			auth:    "Bearer notajwt",
+			wantErr: "invalid JWT format",
 		},
 		{
-			name:        "error - payload not base64url",
-			auth:        "Bearer hdr.not_base64!.sig",
-			wantErrPart: "illegal",
+			name:    "error - payload not base64url",
+			auth:    "Bearer hdr.not_base64!.sig",
+			wantErr: "illegal",
 		},
 		{
 			name: "ok - two parts only (header.payload)",
@@ -72,14 +585,13 @@ func TestClaimsJSONFromAuthHeader(t *testing.T) {
 	}
 
 	for _, tc := range tests {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			c := makeCtxWithAuth(t, tc.auth)
+			c := ctxWithAuth(t, tc.auth)
 			got, err := claimsJSONFromAuthHeader(c)
 
-			if tc.wantErrPart != "" {
+			if tc.wantErr != "" {
 				require.Error(t, err)
-				assert.Contains(t, strings.ToLower(err.Error()), strings.ToLower(tc.wantErrPart))
+				assert.Contains(t, strings.ToLower(err.Error()), strings.ToLower(tc.wantErr))
 				return
 			}
 
@@ -267,7 +779,6 @@ func TestGetValue_Claims(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			c := ctxWithAuth(t, tt.auth)
 			got, err := getValue(c, tt.param)
@@ -291,11 +802,10 @@ func TestBuildRuleValue_NoCases(t *testing.T) {
 	}
 
 	tests := []struct {
-		name      string
-		rule      RuleConfig
-		want      string
-		wantErr   bool
-		errSubstr string
+		name    string
+		rule    RuleConfig
+		want    string
+		wantErr string
 	}{
 		{
 			name: "ok with explicit format and params",
@@ -319,8 +829,7 @@ func TestBuildRuleValue_NoCases(t *testing.T) {
 				Format:     "x:%s:%s",
 				ParamNames: []string{"projectId", "missingKey"},
 			},
-			wantErr:   true,
-			errSubstr: `missing param "missingKey"`,
+			wantErr: `missing param "missingKey"`,
 		},
 		{
 			name: "missing format with >1 args error",
@@ -328,19 +837,17 @@ func TestBuildRuleValue_NoCases(t *testing.T) {
 				Format:     "",
 				ParamNames: []string{"projectId", "topicId"},
 			},
-			wantErr:   true,
-			errSubstr: "missing rule format",
+			wantErr: "missing rule format",
 		},
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := buildRuleValue(tt.rule, paramValues)
-			if tt.wantErr {
+			if tt.wantErr != "" {
 				require.Error(t, err)
-				if tt.errSubstr != "" {
-					assert.Contains(t, err.Error(), tt.errSubstr)
+				if tt.wantErr != "" {
+					assert.Contains(t, err.Error(), tt.wantErr)
 				}
 				return
 			}
@@ -362,12 +869,12 @@ func TestBuildRuleValue_Cases(t *testing.T) {
 			Cases: []RuleCase{
 				{
 					When:       `hasPrefix(sub, "user/")`, // false
-					Format:     "iam:eu-central-1:%s:my-user/%s",
+					Format:     "iam::%s:my-user/%s",
 					ParamNames: []string{"projectId", "sub"},
 				},
 				{
 					When:       `hasPrefix(sub, "sa/")`, // true
-					Format:     "iam:eu-central-1:%s:my-sa/%s",
+					Format:     "iam::%s:my-sa/%s",
 					ParamNames: []string{"projectId", "sub"},
 				},
 				{
@@ -381,7 +888,7 @@ func TestBuildRuleValue_Cases(t *testing.T) {
 
 		got, err := buildRuleValue(rule, params)
 		require.NoError(t, err)
-		assert.Equal(t, "iam:eu-central-1:p1:my-sa/sa/abc", got)
+		assert.Equal(t, "iam::p1:my-sa/sa/abc", got)
 	})
 
 	t.Run("no case matched -> error", func(t *testing.T) {
@@ -393,7 +900,7 @@ func TestBuildRuleValue_Cases(t *testing.T) {
 					ParamNames: []string{"sub"},
 				},
 				{
-					When:       `equalFold(topicId, "other")`, // false
+					When:       `equalsIgnoreCase(topicId, "other")`, // false
 					Format:     "y:%s",
 					ParamNames: []string{"topicId"},
 				},
@@ -420,45 +927,54 @@ func TestBuildRuleValue_Cases(t *testing.T) {
 	})
 }
 
-func TestFormatRule(t *testing.T) {
-	params := map[string]string{
-		"a": "A",
-		"b": "B",
-	}
-
-	t.Run("ok", func(t *testing.T) {
-		got, err := formatRule("x:%s-%s", []string{"a", "b"}, params)
-		require.NoError(t, err)
-		assert.Equal(t, "x:A-B", got)
-	})
-
-	t.Run("missing param", func(t *testing.T) {
-		_, err := formatRule("x:%s", []string{"missing"}, params)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), `missing param "missing"`)
-	})
-
-	t.Run("default format with single arg", func(t *testing.T) {
-		got, err := formatRule("", []string{"a"}, params)
-		require.NoError(t, err)
-		assert.Equal(t, "A", got)
-	})
-
-	t.Run("missing format with multiple args", func(t *testing.T) {
-		_, err := formatRule("", []string{"a", "b"}, params)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "missing rule format")
-	})
-}
-
-func makeCtxWithAuth(t *testing.T, auth string) *gin.Context {
+func ctxWithHeaders(t *testing.T, set func(hdr *map[string][]string)) *gin.Context {
 	t.Helper()
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	req := httptest.NewRequest("GET", "/", nil)
-	if auth != "" {
-		req.Header.Set("Authorization", auth)
+
+	req := httptest.NewRequest(http.MethodGet, "/whatever", nil)
+	if set != nil {
+		// Allow caller to set multiple or repeated headers.
+		m := map[string][]string{}
+		set(&m)
+		for k, vs := range m {
+			for _, v := range vs {
+				req.Header.Add(k, v)
+			}
+		}
 	}
+	c.Request = req
+	return c
+}
+
+func ctxWithBasicAuth(t *testing.T, username, password string, withAuth bool) *gin.Context {
+	t.Helper()
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+
+	req := httptest.NewRequest(http.MethodGet, "/whatever", nil)
+	if withAuth {
+		req.SetBasicAuth(username, password)
+	}
+	c.Request = req
+	return c
+}
+
+func ctxWithPathParam(t *testing.T, key, val string) *gin.Context {
+	t.Helper()
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/whatever", nil)
+	if key != "" {
+		c.Params = gin.Params{gin.Param{Key: key, Value: val}}
+	}
+	return c
+}
+func ctxWithQuery(t *testing.T, rawQuery string) *gin.Context {
+	t.Helper()
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	req := httptest.NewRequest(http.MethodGet, "/whatever?"+rawQuery, nil)
 	c.Request = req
 	return c
 }
@@ -467,10 +983,27 @@ func ctxWithAuth(t *testing.T, auth string) *gin.Context {
 	t.Helper()
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	if auth != "" {
 		req.Header.Set("Authorization", auth)
 	}
+	c.Request = req
+	return c
+}
+
+func ctxEmpty(t *testing.T) *gin.Context {
+	t.Helper()
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request = httptest.NewRequest(http.MethodGet, "/whatever", nil)
+	return c
+}
+
+func ctxWithURL(t *testing.T, method, rawURL string) *gin.Context {
+	t.Helper()
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest(method, rawURL, nil)
+	c, _ := gin.CreateTestContext(w)
 	c.Request = req
 	return c
 }

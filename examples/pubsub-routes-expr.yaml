@@ -19,10 +19,10 @@ routes:
     rules:
       - cases:
           - when: '!equal(iss, "acme/serviceaccount")'
-            format: iam:eu-central-1:%s:user/%s
+            format: iam::%s:user/%s
             paramNames: [ projectId, sub ]
           - when: 'equal(iss, "acme/serviceaccount")'
-            format: iam:eu-central-1:%s:sa/%s
+            format: iam::%s:sa/%s
             paramNames: [ projectId, sub ]
       - format: pubsub:eu-central-1:%s:topics/%s
         paramNames: [ projectId, topicId ]
@@ -46,7 +46,7 @@ routes:
       - name: subscriptionId
         source: path
     rules:
-      - format: iam:eu-central-1:%s:sa/%s
+      - format: iam::%s:sa/%s
         paramNames: [ projectId, sub ]
       - format: pubsub:eu-central-1:%s:topics/%s/subscriptions/%s
         paramNames: [ projectId, topicId, subscriptionId ]

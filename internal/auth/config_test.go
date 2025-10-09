@@ -1,0 +1,329 @@
+// nolint: funlen
+package auth
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestParamConfig_Key(t *testing.T) {
+	tests := []struct {
+		name string
+		p    ParamConfig
+		want string
+	}{
+		{
+			name: "uses name when expr empty",
+			p:    ParamConfig{Name: "X-Request-Id"},
+			want: "X-Request-Id",
+		},
+		{
+			name: "uses expr when present",
+			p:    ParamConfig{Name: "ignored", Expr: "claims.sub"},
+			want: "claims.sub",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.p.Key())
+		})
+	}
+}
+
+func TestRuleConfig_Validate(t *testing.T) {
+	tests := []struct {
+		name    string
+		r       RuleConfig
+		wantErr string
+	}{
+		{
+			name: "happy path with Format and matching ParamNames",
+			r: RuleConfig{
+				Format:     "%s-%s",
+				ParamNames: []string{"a", "b"},
+			},
+		},
+		{
+			name: "happy path with single Case",
+			r: RuleConfig{
+				Cases: []RuleCase{
+					{
+						When:       "x == 'y'",
+						Format:     "%s",
+						ParamNames: []string{"id"},
+					},
+				},
+			},
+		},
+		{
+			name: "error when Format empty and no Cases",
+			r: RuleConfig{
+				Format:     "",
+				ParamNames: []string{"a"},
+			},
+			wantErr: "Format is required when cases is empty",
+		},
+		{
+			name: "error when %s count mismatches ParamNames (no cases)",
+			r: RuleConfig{
+				Format:     "%s-%s",
+				ParamNames: []string{"onlyOne"},
+			},
+			wantErr: "Format %s count (2) must equal ParamNames length (1)",
+		},
+		{
+			name: "error when Cases present but Format not empty",
+			r: RuleConfig{
+				Format:     "%s",
+				ParamNames: nil,
+				Cases: []RuleCase{
+					{Format: "%s", ParamNames: []string{"id"}},
+				},
+			},
+			wantErr: "Format must be empty when cases are present",
+		},
+		{
+			name: "error when Cases present but ParamNames not empty on parent",
+			r: RuleConfig{
+				ParamNames: []string{"shouldBeEmpty"},
+				Cases: []RuleCase{
+					{Format: "%s", ParamNames: []string{"id"}},
+				},
+			},
+			wantErr: "ParamNames must be empty when cases are present",
+		},
+		{
+			name: "error when a Case has empty format",
+			r: RuleConfig{
+				Cases: []RuleCase{
+					{Format: "", ParamNames: []string{"id"}},
+				},
+			},
+			wantErr: "cases[0].format is required",
+		},
+		{
+			name: "error when Case %s count mismatches",
+			r: RuleConfig{
+				Cases: []RuleCase{
+					{Format: "%s-%s", ParamNames: []string{"onlyOne"}},
+				},
+			},
+			wantErr: "cases[0].format %s count (2) must equal ParamNames length (1)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.r.Validate()
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestRouteConfig_Validate(t *testing.T) {
+	route := func(method string, params []ParamConfig, rules []RuleConfig) Route {
+		return Route{
+			HttpMethod:    method,
+			RelativePaths: []string{"/ok"},
+			Params:        params,
+			Rules:         rules,
+		}
+	}
+	rc := func(routes ...Route) *RouteConfig {
+		return &RouteConfig{Routes: routes}
+	}
+
+	t.Run("happy path minimal", func(t *testing.T) {
+		cfg := rc(route("GET", nil, nil))
+		require.NoError(t, cfg.Validate())
+	})
+
+	t.Run("invalid http method -> oneof error surfaced", func(t *testing.T) {
+		cfg := rc(route("FETCH", nil, nil))
+		err := cfg.Validate()
+		require.Error(t, err)
+		msg := err.Error()
+		assert.Contains(t, msg, "Routes[0].HttpMethod: must be one of")
+		assert.Contains(t, msg, "FETCH")
+	})
+
+	t.Run("unknown param function -> clear error from describeValidationErrors", func(t *testing.T) {
+		cfg := rc(route("GET", []ParamConfig{
+			{
+				Name:     "x",
+				Source:   ParamSourceQuery,
+				Function: "notAFunction",
+			},
+		}, nil))
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Params[0].Function: unknown function notAFunction")
+	})
+
+	t.Run("dive error propagates for invalid rules via RuleConfig.Validate", func(t *testing.T) {
+		badRule := RuleConfig{
+			Format:     "",
+			ParamNames: []string{"id"},
+		}
+		cfg := rc(route("GET", nil, []RuleConfig{badRule}))
+		err := cfg.Validate()
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "routes[0].rules[0]: rule validation: Format is required when cases is empty")
+	})
+
+	t.Run("multiple aggregated validation lines", func(t *testing.T) {
+		cfg := &RouteConfig{
+			Routes: []Route{
+				{
+					HttpMethod: "BAD", // oneof failure
+					Params: []ParamConfig{
+						// Missing required Source -> "required"
+						{Name: "p"},
+						// Unknown function -> param_function
+						{Name: "q", Source: ParamSourceHeader, Function: "nope"},
+					},
+				},
+			},
+		}
+		err := cfg.Validate()
+		require.Error(t, err)
+		msg := err.Error()
+
+		// Ensure multiple problems are joined with " | "
+		assert.Contains(t, msg, " | ")
+
+		// Spot-check a few transformed messages
+		assert.Contains(t, msg, "Routes[0].HttpMethod: must be one of")
+		assert.Contains(t, msg, "Routes[0].Params[0].Source: is required")
+		assert.Contains(t, msg, "Routes[0].Params[1].Function: unknown function nope")
+	})
+}
+
+func TestDescribeValidationErrors_FallsBackOnNonValidationError(t *testing.T) {
+	e := describeValidationErrors(assert.AnError)
+	assert.Equal(t, assert.AnError.Error(), e)
+}
+
+func TestRuleConfig_Validate_AllErrorsTogether(t *testing.T) {
+	r := RuleConfig{
+		Format:     "%s",                 // should be empty because Cases present
+		ParamNames: []string{"shouldnt"}, // must be empty when Cases present
+		Cases: []RuleCase{
+			{Format: "%s-%s", ParamNames: []string{"onlyOne"}}, // mismatch inside case
+		},
+	}
+	err := r.Validate()
+	require.Error(t, err)
+	msg := err.Error()
+	assert.Contains(t, msg, "Format must be empty when cases are present")
+	assert.Contains(t, msg, "ParamNames must be empty when cases are present")
+	assert.Contains(t, msg, "cases[0].format %s count (2) must equal ParamNames length (1)")
+}
+
+func TestRouteConfig_Validate_RuleErrorIsWrappedWithIndices(t *testing.T) {
+	cfg := &RouteConfig{
+		Routes: []Route{
+			{HttpMethod: "GET"},
+			{
+				HttpMethod: "POST",
+				Rules: []RuleConfig{
+					{ // ok
+						Format:     "%s",
+						ParamNames: []string{"id"},
+					},
+					{ // bad
+						Format:     "",
+						ParamNames: []string{"x"},
+					},
+				},
+			},
+		},
+	}
+	err := cfg.Validate()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "routes[1].rules[1]: rule validation: Format is required when cases is empty")
+}
+
+func TestDescribeValidationErrors_OneOfFormatting(t *testing.T) {
+	cfg := &RouteConfig{
+		Routes: []Route{
+			{
+				HttpMethod: "WRONG",
+				Params:     []ParamConfig{qp("a"), hp("b")},
+			},
+		},
+	}
+	err := cfg.Validate()
+	require.Error(t, err)
+	msg := err.Error()
+	assert.Contains(t, msg, "must be one of")
+	assert.Contains(t, msg, "WRONG")
+}
+
+func TestParamFunctionTag_ChecksAgainstBuiltinCaseInsensitively(t *testing.T) {
+	cfg := &RouteConfig{
+		Routes: []Route{
+			{
+				HttpMethod: "GET",
+				Params: []ParamConfig{
+					{Name: "x", Source: ParamSourceQuery, Function: "B64DEC"},
+				},
+			},
+		},
+	}
+	err := cfg.Validate()
+	require.NoError(t, err)
+}
+
+func TestRouteConfig_Validate_RulesPassThrough(t *testing.T) {
+	cfg := &RouteConfig{
+		Routes: []Route{
+			{
+				HttpMethod: "PUT",
+				Rules: []RuleConfig{
+					{Format: "%s-%s", ParamNames: []string{"a", "b"}},
+				},
+			},
+		},
+	}
+	require.NoError(t, cfg.Validate())
+}
+
+func TestRouteConfig_Validate_ParamsAndRulesTogether(t *testing.T) {
+	cfg := &RouteConfig{
+		Routes: []Route{
+			{
+				HttpMethod: "DELETE",
+				Params: []ParamConfig{
+					{Name: "Host", Source: ParamSourceHeader},
+				},
+				Rules: []RuleConfig{
+					{Format: "%s", ParamNames: []string{"Host"}},
+				},
+			},
+		},
+	}
+	require.NoError(t, cfg.Validate())
+}
+
+func qp(name string) ParamConfig {
+	return ParamConfig{
+		Name:   name,
+		Source: ParamSourceQuery,
+	}
+}
+
+func hp(name string) ParamConfig {
+	return ParamConfig{
+		Name:   name,
+		Source: ParamSourceHeader,
+	}
+}

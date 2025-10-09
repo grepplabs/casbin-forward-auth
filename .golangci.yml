@@ -1,0 +1,127 @@
+version: "2"
+run:
+  allow-parallel-runners: true
+linters:
+  default: none
+  enable:
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - canonicalheader
+    - containedctx
+    - contextcheck
+    - copyloopvar
+    - cyclop
+    - decorder
+    - dogsled
+    - dupl
+    - dupword
+    - durationcheck
+    - errcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - exptostd
+    - fatcontext
+    - forbidigo
+    - forcetypeassert
+    - funlen
+    - ginkgolinter
+    - gocheckcompilerdirectives
+    - gochecksumtype
+    - gocognit
+    - goconst
+    - gocritic
+    - gocyclo
+    - godox
+    - goheader
+    - gomoddirectives
+    - gomodguard
+    - goprintffuncname
+    - gosec
+    - gosmopolitan
+    - govet
+    - grouper
+    - iface
+    - importas
+    - inamedparam
+    - ineffassign
+    - interfacebloat
+    - intrange
+    - loggercheck
+    - maintidx
+    - makezero
+    - mirror
+    - misspell
+    - musttag
+    - nakedret
+    - nestif
+    - nilerr
+    - nilnesserr
+    - noctx
+    - nonamedreturns
+    - nosprintfhostport
+    - perfsprint
+    - prealloc
+    - predeclared
+    - promlinter
+    - protogetter
+    - reassign
+    - recvcheck
+    - rowserrcheck
+    - sloglint
+    - spancheck
+    - sqlclosecheck
+    - staticcheck
+    - tagliatelle
+    - testableexamples
+    - testifylint
+    - thelper
+    - tparallel
+    - unconvert
+    - unparam
+    - unused
+    - usestdlibvars
+    - usetesting
+    - wastedassign
+    - whitespace
+    - zerologlint
+  settings:
+    lll:
+      line-length: 240
+    revive:
+      rules:
+        - name: comment-spacings
+        - name: import-shadowing
+  exclusions:
+    generated: lax
+    rules:
+      - path: _test\.go
+        linters:
+          - dupl
+          - errcheck
+          - gosec
+          - intrange
+      - linters:
+          - lll
+        path: api/*
+      - linters:
+          - dupl
+          - lll
+        path: internal/*
+    paths:
+      - third_party$
+      - builtin$
+      - examples$
+formatters:
+  enable:
+    - gofmt
+    - goimports
+  exclusions:
+    generated: lax
+    paths:
+      - third_party$
+      - builtin$
+      - examples$

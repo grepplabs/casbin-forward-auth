@@ -30,6 +30,12 @@ func newLifecycleEnforcer(cfg *config.CasbinConfig) (*LifecycleEnforcer, error) 
 	if err != nil {
 		return nil, fmt.Errorf("error creating enforcer: %w", err)
 	}
+	enforcer.EnableAutoSave(false)
+
+	if cfg.AutoLoadPolicyInterval > 0 {
+		zlog.Infof("casbin policy auto-reload interval: %v", cfg.AutoLoadPolicyInterval)
+		enforcer.StartAutoLoadPolicy(cfg.AutoLoadPolicyInterval)
+	}
 	cr := &LifecycleEnforcer{SyncedEnforcer: enforcer}
 
 	starter, closer, err := newInformer(cfg, enforcer)

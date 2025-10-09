@@ -35,11 +35,20 @@ func Start(cfg config.Config) error {
 	if err != nil {
 		return fmt.Errorf("could not create enforcer: %w", err)
 	}
+	//nolint:errcheck
 	defer enforcer.Close()
 
-	routeConfig, err := loadRouteConfig(cfg.Auth.RouteConfigPath)
-	if err != nil {
-		return fmt.Errorf("error loading route config: %w", err)
+	var (
+		routeConfig *auth.RouteConfig
+	)
+	if cfg.Auth.RouteConfigPath != "" {
+		routeConfig, err = loadRouteConfig(cfg.Auth.RouteConfigPath)
+		if err != nil {
+			return fmt.Errorf("error loading route config: %w", err)
+		}
+	} else {
+		zlog.Errorf("auth-route-config-path is not provided")
+		routeConfig = &auth.RouteConfig{}
 	}
 	auth.SetupRoutes(authEngine, routeConfig.Routes, enforcer.SyncedEnforcer)
 
@@ -63,6 +72,7 @@ func Start(cfg config.Config) error {
 }
 
 func loadRouteConfig(path string) (*auth.RouteConfig, error) {
+	// #nosec G304 -- path is controlled and provided as config
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
@@ -71,8 +81,9 @@ func loadRouteConfig(path string) (*auth.RouteConfig, error) {
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
-	//TODO: validate
-
+	if err = cfg.Validate(); err != nil {
+		return nil, err
+	}
 	return &cfg, nil
 }
 
@@ -86,7 +97,7 @@ func forwardAuth(c *gin.Context, authEngine *gin.Engine) (string, error) {
 	lw := zlog.Logger.WithValues("method", forwardedMethod, "host", forwardedHost, "uri", forwardedUri)
 	lw.V(1).Info("forward auth")
 
-	req, err := http.NewRequest(forwardedMethod, forwardedUri, nil)
+	req, err := http.NewRequestWithContext(c, forwardedMethod, forwardedUri, nil)
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
@@ -104,6 +115,7 @@ func forwardAuth(c *gin.Context, authEngine *gin.Engine) (string, error) {
 	req.Header.Del(HeaderForwardedFor)
 
 	// set original host
+	req.Host = forwardedHost
 	req.Header.Set(HeaderHost, forwardedHost)
 
 	w := httptest.NewRecorder()

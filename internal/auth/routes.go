@@ -9,35 +9,31 @@ import (
 	"github.com/casbin/casbin/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/grepplabs/loggo/zlog"
+	"github.com/pkg/errors"
 	"github.com/tidwall/gjson"
 )
 
 const ctxKeyJWTClaims = "jwt_claims"
 
-// get or parse once and store claims JSON for this request
-func claimsJSONFromContext(c *gin.Context) ([]byte, error) {
-	if v, ok := c.Get(ctxKeyJWTClaims); ok {
-		return v.([]byte), nil
+func SetupRoutes(r *gin.Engine, routes []Route, enforcer *casbin.SyncedEnforcer) *gin.Engine {
+	if len(routes) == 0 {
+		zlog.Infof("no auth routes defined")
 	}
-	claimsJSON, err := claimsJSONFromAuthHeader(c)
-	if err != nil {
-		return nil, err
-	}
-	c.Set(ctxKeyJWTClaims, claimsJSON)
-	return claimsJSON, nil
-}
 
-func claimsJSONFromAuthHeader(c *gin.Context) ([]byte, error) {
-	tokenHeader := c.GetHeader("Authorization")
-	if len(tokenHeader) < 7 || !strings.EqualFold(tokenHeader[:7], "bearer ") {
-		return nil, fmt.Errorf("missing or non-bearer Authorization header")
+	for _, route := range routes {
+		handler := makeHandler(route, enforcer)
+		method := strings.ToUpper(route.HttpMethod)
+
+		for _, relativePath := range route.RelativePaths {
+			zlog.Infof("add auth route %s %s", method, relativePath)
+			if method == HttpMethodAny {
+				r.Any(relativePath, handler)
+			} else {
+				r.Handle(route.HttpMethod, relativePath, handler)
+			}
+		}
 	}
-	tok := tokenHeader[7:]
-	parts := strings.Split(tok, ".")
-	if len(parts) < 2 {
-		return nil, fmt.Errorf("invalid JWT format")
-	}
-	return base64.RawURLEncoding.DecodeString(parts[1])
+	return r
 }
 
 func makeHandler(route Route, enforcer *casbin.SyncedEnforcer) gin.HandlerFunc {
@@ -87,6 +83,7 @@ func makeHandler(route Route, enforcer *casbin.SyncedEnforcer) gin.HandlerFunc {
 	}
 }
 
+// nolint: cyclop
 func getValue(c *gin.Context, p ParamConfig) (string, error) {
 	var val string
 
@@ -100,10 +97,8 @@ func getValue(c *gin.Context, p ParamConfig) (string, error) {
 	case ParamSourceClaim:
 		claimsJSON, err := claimsJSONFromContext(c)
 		if err != nil {
-			return "", fmt.Errorf("invalid or missing Bearer Authorization header")
+			return "", errors.New("invalid or missing Bearer Authorization header")
 		}
-		//TODO: could use other function to build concat principal
-		//TODO: can also provide a context for a string format
 		res := gjson.ParseBytes(claimsJSON).Get(p.Key())
 		if !res.Exists() {
 			return "", fmt.Errorf("missing claim %s", p.Key())
@@ -113,6 +108,15 @@ func getValue(c *gin.Context, p ParamConfig) (string, error) {
 		user, _, ok := c.Request.BasicAuth()
 		if ok {
 			val = user
+		}
+	case ParamSourceURL:
+		u := *c.Request.URL
+		u.RawQuery = ""
+		val = u.String()
+	case ParamSourceURLPath:
+		val = c.Request.URL.Path
+		if val == "" {
+			val = "/"
 		}
 	default:
 		return "", fmt.Errorf("unknown source for %s", p.Source)
@@ -140,28 +144,36 @@ func buildRuleValue(rule RuleConfig, paramValues map[string]string) (string, err
 			// matched case
 			return formatRule(cs.Format, cs.ParamNames, paramValues)
 		}
-		return "", fmt.Errorf("no case matched")
+		return "", errors.New("no case matched")
 	}
 	return formatRule(rule.Format, rule.ParamNames, paramValues)
 }
 
-func SetupRoutes(r *gin.Engine, routes []Route, enforcer *casbin.SyncedEnforcer) *gin.Engine {
-	if len(routes) == 0 {
-		zlog.Infof("no auth routes defined")
-	}
-
-	for _, route := range routes {
-		handler := makeHandler(route, enforcer)
-		method := strings.ToUpper(route.HttpMethod)
-
-		for _, relativePath := range route.RelativePaths {
-			zlog.Infof("add auth route %s %s", method, relativePath)
-			if method == HttpMethodAny {
-				r.Any(relativePath, handler)
-			} else {
-				r.Handle(route.HttpMethod, relativePath, handler)
-			}
+// get or parse once and store claims JSON for this request
+func claimsJSONFromContext(c *gin.Context) ([]byte, error) {
+	if v, ok := c.Get(ctxKeyJWTClaims); ok {
+		if claimsJSON, ok := v.([]byte); ok {
+			return claimsJSON, nil
 		}
+		return nil, fmt.Errorf("unexpected type for %s: %T", ctxKeyJWTClaims, v)
 	}
-	return r
+	claimsJSON, err := claimsJSONFromAuthHeader(c)
+	if err != nil {
+		return nil, err
+	}
+	c.Set(ctxKeyJWTClaims, claimsJSON)
+	return claimsJSON, nil
+}
+
+func claimsJSONFromAuthHeader(c *gin.Context) ([]byte, error) {
+	tokenHeader := c.GetHeader("Authorization")
+	if len(tokenHeader) < 7 || !strings.EqualFold(tokenHeader[:7], "bearer ") {
+		return nil, errors.New("missing or non-bearer Authorization header")
+	}
+	tok := tokenHeader[7:]
+	parts := strings.Split(tok, ".")
+	if len(parts) < 2 {
+		return nil, errors.New("invalid JWT format")
+	}
+	return base64.RawURLEncoding.DecodeString(parts[1])
 }

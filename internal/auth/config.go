@@ -1,5 +1,14 @@
 package auth
 
+import (
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+
+	"github.com/go-playground/validator/v10"
+)
+
 const (
 	HttpMethodAny = "ANY"
 )
@@ -12,14 +21,16 @@ const (
 	ParamSourceHeader        ParamSource = "header"
 	ParamSourceClaim         ParamSource = "claim"
 	ParamSourceBasicAuthUser ParamSource = "basicAuthUser"
+	ParamSourceURL           ParamSource = "url"
+	ParamSourceURLPath       ParamSource = "urlPath"
 )
 
 type ParamConfig struct {
 	Name     string      `json:"name" yaml:"name" binding:"required"` // param name (e.g. "x" or "X-Name")
-	Source   ParamSource `json:"source" yaml:"source" binding:"required,oneof=path query header claim basicAuthUser"`
-	Default  string      `json:"default,omitempty" yaml:"default,omitempty"`   // optional fallback if value is empty
-	Function string      `json:"function,omitempty" yaml:"function,omitempty"` // function
-	Expr     string      `json:"expr,omitempty" yaml:"expr,omitempty"`         // expression
+	Source   ParamSource `json:"source" yaml:"source" binding:"required,oneof=path query header claim basicAuthUser url urlPath"`
+	Default  string      `json:"default,omitempty" yaml:"default,omitempty"`                                      // optional fallback if value is empty
+	Function string      `json:"function,omitempty" yaml:"function,omitempty" binding:"omitempty,param_function"` // function
+	Expr     string      `json:"expr,omitempty" yaml:"expr,omitempty"`                                            // expression
 }
 
 func (p *ParamConfig) Key() string {
@@ -30,7 +41,6 @@ func (p *ParamConfig) Key() string {
 }
 
 type RuleConfig struct {
-	//TODO: make Format and ParamNames required when Cases is empty
 	Format     string   `json:"format,omitempty" yaml:"format,omitempty"`         // "%s-%s" -> "default" "%s"
 	ParamNames []string `json:"paramNames,omitempty" yaml:"paramNames,omitempty"` // ["id", "q"]
 	// conditionals
@@ -42,14 +52,115 @@ type RuleCase struct {
 	Format     string   `json:"format" yaml:"format"`
 	ParamNames []string `json:"paramNames,omitempty" yaml:"paramNames,omitempty" binding:"dive,required"`
 }
-
-type RouteConfig struct {
-	Routes []Route `json:"routes" yaml:"routes" binding:"dive,required"`
-}
-
 type Route struct {
 	HttpMethod    string        `json:"httpMethod" yaml:"httpMethod" binding:"required,oneof=GET HEAD POST PUT PATCH DELETE CONNECT OPTIONS TRACE ANY"`
 	RelativePaths []string      `json:"relativePaths" yaml:"relativePaths"`                      // e.g. "/user/:id"
 	Params        []ParamConfig `json:"params,omitempty" yaml:"params,omitempty" binding:"dive"` // params to extract
 	Rules         []RuleConfig  `json:"rules,omitempty" yaml:"rules,omitempty" binding:"dive"`   // cabin arguments (if missing -> use params)
+}
+
+type RouteConfig struct {
+	Routes []Route `json:"routes" yaml:"routes" binding:"dive,required"`
+}
+
+func (rc *RouteConfig) Validate() error {
+	v := validator.New(validator.WithRequiredStructEnabled())
+	v.SetTagName("binding")
+	err := v.RegisterValidation("param_function", func(fl validator.FieldLevel) bool {
+		name := strings.ToLower(strings.TrimSpace(fl.Field().String()))
+		if name == "" {
+			return true
+		}
+		_, ok := builtinFunc[name]
+		return ok
+	})
+	if err != nil {
+		return err
+	}
+	err = v.Struct(rc)
+	if err != nil {
+		return fmt.Errorf("validation error: %s", describeValidationErrors(err))
+	}
+	for ri := range rc.Routes {
+		for rj, rule := range rc.Routes[ri].Rules {
+			if err := rule.Validate(); err != nil {
+				return fmt.Errorf("routes[%d].rules[%d]: %w", ri, rj, err)
+			}
+		}
+	}
+	return nil
+}
+
+// nolint: cyclop
+func (r RuleConfig) Validate() error {
+	var errs []string
+
+	if len(r.Cases) == 0 {
+		if r.Format == "" {
+			errs = append(errs, "Format is required when cases is empty")
+		}
+		if n := strings.Count(r.Format, "%s"); n != len(r.ParamNames) {
+			errs = append(errs, fmt.Sprintf("Format %%s count (%d) must equal ParamNames length (%d)", n, len(r.ParamNames)))
+		}
+	}
+	if len(r.Cases) > 0 {
+		if r.Format != "" {
+			errs = append(errs, "Format must be empty when cases are present")
+		}
+		if len(r.ParamNames) > 0 {
+			errs = append(errs, "ParamNames must be empty when cases are present")
+		}
+	}
+	for i, c := range r.Cases {
+		if c.Format == "" {
+			errs = append(errs, fmt.Sprintf("cases[%d].format is required", i))
+			continue
+		}
+		if n := strings.Count(c.Format, "%s"); n != len(c.ParamNames) {
+			errs = append(errs, fmt.Sprintf("cases[%d].format %%s count (%d) must equal ParamNames length (%d)", i, n, len(c.ParamNames)))
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("rule validation: %s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+// nolint: cyclop, perfsprint
+func describeValidationErrors(err error) string {
+	var ves validator.ValidationErrors
+	if !errors.As(err, &ves) {
+		return err.Error()
+	}
+
+	lines := make([]string, 0, len(ves))
+	for _, fe := range ves {
+		path := fe.StructNamespace()
+		if dot := strings.Index(path, "."); dot != -1 {
+			path = path[dot+1:]
+		}
+		switch fe.Tag() {
+		case "required":
+			lines = append(lines, fmt.Sprintf("%s: is required", path))
+		case "oneof":
+			allowed := strings.Fields(fe.Param())
+			lines = append(lines, fmt.Sprintf("%s: must be one of %v; got %v", path, allowed, fe.Value()))
+		case "dive":
+			lines = append(lines, fmt.Sprintf("%s: has invalid item(s)", path))
+		case "param_function":
+			allowed := make([]string, 0, len(builtinFunc))
+			for k := range builtinFunc {
+				allowed = append(allowed, k)
+			}
+			sort.Strings(allowed)
+			lines = append(lines, fmt.Sprintf("%s: unknown function %v; allowed=%v", path, fe.Value(), allowed))
+		default:
+			if fe.Param() != "" {
+				lines = append(lines, fmt.Sprintf("%s: failed %s (%s); got %v", path, fe.Tag(), fe.Param(), fe.Value()))
+			} else {
+				lines = append(lines, fmt.Sprintf("%s: failed %s; got %v", path, fe.Tag(), fe.Value()))
+			}
+		}
+	}
+	return strings.Join(lines, " | ")
 }
