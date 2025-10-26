@@ -1,0 +1,46 @@
+namespaceOverride: traefik
+
+global:
+  checkNewVersion: false
+  sendAnonymousUsage: false
+
+logs:
+  general:
+    level: INFO
+  access:
+    enabled: true
+    fields:
+      defaultMode: keep
+      headers:
+        defaultMode: keep
+
+service:
+  type: NodePort
+
+ports:
+  web:
+    port: 80
+    expose:
+      default: true
+    exposedPort: 80
+    protocol: TCP
+    nodePort: 30080
+  websecure:
+    port: 443
+    expose:
+      default: true
+    exposedPort: 443
+    protocol: TCP
+    nodePort: 30443
+
+gateway:
+  namespacePolicy: All
+
+providers:
+  kubernetesCRD:
+    enabled: true
+    allowCrossNamespace: true
+
+additionalArguments:
+  - "--entrypoints.web.http.middlewares=traefik-casbin-auth@kubernetescrd"
+  - "--entrypoints.websecure.http.middlewares=traefik-casbin-auth@kubernetescrd"

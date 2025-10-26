@@ -1,0 +1,15 @@
+fullnameOverride: casbin-auth-keymatch
+
+image:
+  repository: local/casbin-traefik-forward-auth
+  tag: latest
+
+application:
+  env:
+    LOG_FORMAT: "text"
+    CASBIN_MODEL: keymatch_model.conf
+    CASBIN_ADAPTER_KUBE_CONFIG_LABELS: "casbin.grepplabs.com/model=keymatch"
+  adapter:
+    kube:
+      namespace:
+  authRouteConfig:

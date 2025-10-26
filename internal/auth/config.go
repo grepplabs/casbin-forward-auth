@@ -112,9 +112,22 @@ func (r RuleConfig) Validate() error {
 		}
 	}
 	for i, c := range r.Cases {
+		if c.When == "" {
+			errs = append(errs, fmt.Sprintf("cases[%d].when is required", i))
+			continue
+		}
 		if c.Format == "" {
 			errs = append(errs, fmt.Sprintf("cases[%d].format is required", i))
 			continue
+		}
+
+		switch c.When {
+		case "true", "false":
+			// valid literals — do nothing
+		default:
+			if _, err := compileWhen(c.When); err != nil {
+				errs = append(errs, fmt.Sprintf("cases[%d].when %q is invalid: %v", i, c.When, err))
+			}
 		}
 		if n := strings.Count(c.Format, "%s"); n != len(c.ParamNames) {
 			errs = append(errs, fmt.Sprintf("cases[%d].format %%s count (%d) must equal ParamNames length (%d)", i, n, len(c.ParamNames)))

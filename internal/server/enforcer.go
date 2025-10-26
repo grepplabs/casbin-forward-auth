@@ -70,7 +70,7 @@ func newInformer(cfg *config.CasbinConfig, enforcer casbin.IEnforcer) (Starter, 
 	if strings.ToLower(cfg.Adapter) != config.AdapterKube || cfg.AdapterKube.DisableInformer {
 		return nil, nil, nil
 	}
-	zlog.Infof("init 'kube' informer")
+	zlog.Infof("init 'kube' informer for namespace '%s' labels '%v'", cfg.AdapterKube.KubeConfig.Namespace, cfg.AdapterKube.KubeConfig.Labels)
 
 	informer, err := casbinkube.NewInformer(&casbinkube.InformerConfig{KubeConfig: cfg.AdapterKube.KubeConfig}, enforcer)
 	if err != nil {

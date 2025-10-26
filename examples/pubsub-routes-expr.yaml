@@ -18,10 +18,10 @@ routes:
         expr: iss
     rules:
       - cases:
-          - when: '!equal(iss, "acme/serviceaccount")'
+          - when: '!equals(iss, "acme/serviceaccount")'
             format: iam::%s:user/%s
             paramNames: [ projectId, sub ]
-          - when: 'equal(iss, "acme/serviceaccount")'
+          - when: 'p["iss"] == "acme/serviceaccount"'
             format: iam::%s:sa/%s
             paramNames: [ projectId, sub ]
       - format: pubsub:eu-central-1:%s:topics/%s

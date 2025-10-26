@@ -25,7 +25,7 @@ func Test_forwardAuth_MissingHeaders(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 
 	// attach a request (no forwarded header set)
-	c.Request = httptest.NewRequest(http.MethodGet, "/auth", nil)
+	c.Request = httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
 
 	_, err := forwardAuth(c, authEngine)
 	require.Error(t, err)
@@ -53,7 +53,7 @@ func Test_forwardAuth_HappyPath_StripsForwardedHeaders_SetsMethodAndURI(t *testi
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	req := httptest.NewRequest(http.MethodGet, "/auth", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
 
 	req.Header.Set(HeaderForwardedMethod, http.MethodPost)
 	req.Header.Set(HeaderForwardedHost, "svc.local")
@@ -138,7 +138,7 @@ func Test_forwardAuth_RejectsWhenAuthEngineReturnsNonOK(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	req := httptest.NewRequest(http.MethodGet, "/auth", nil)
+	req := httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
 	req.Header.Set(HeaderForwardedMethod, http.MethodGet)
 	req.Header.Set(HeaderForwardedHost, "svc.local")
 	req.Header.Set(HeaderForwardedURI, "/deny")

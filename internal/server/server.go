@@ -7,10 +7,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"time"
 
+	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"github.com/grepplabs/casbin-traefik-forward-auth/internal/auth"
 	"github.com/grepplabs/loggo/zlog"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 
 	"github.com/grepplabs/casbin-traefik-forward-auth/internal/config"
@@ -27,9 +30,21 @@ const (
 
 func Start(cfg config.Config) error {
 	gin.SetMode(gin.ReleaseMode)
-	engine := gin.Default()
 
-	authEngine := gin.Default()
+	engineLogger := zlog.LogSink.WithOptions(zap.WithCaller(false)).With(zap.String("engine", "main"))
+	engine := gin.New()
+	engine.Use(ginzap.GinzapWithConfig(engineLogger, &ginzap.Config{
+		TimeFormat: time.RFC3339,
+		SkipPaths:  []string{"/healthz", "/readyz"},
+	}))
+	engine.Use(ginzap.RecoveryWithZap(engineLogger, true))
+
+	authEngineLogger := zlog.LogSink.WithOptions(zap.WithCaller(false)).With(zap.String("engine", "auth"))
+	authEngine := gin.New()
+	authEngine.Use(ginzap.GinzapWithConfig(authEngineLogger, &ginzap.Config{
+		TimeFormat: time.RFC3339,
+	}))
+	authEngine.Use(ginzap.RecoveryWithZap(authEngineLogger, true))
 
 	enforcer, err := newLifecycleEnforcer(&cfg.Casbin)
 	if err != nil {
@@ -47,18 +62,24 @@ func Start(cfg config.Config) error {
 			return fmt.Errorf("error loading route config: %w", err)
 		}
 	} else {
-		zlog.Errorf("auth-route-config-path is not provided")
+		zlog.Warnf("auth-route-config-path is not provided")
 		routeConfig = &auth.RouteConfig{}
 	}
 	auth.SetupRoutes(authEngine, routeConfig.Routes, enforcer.SyncedEnforcer)
 
-	engine.GET("/auth", func(c *gin.Context) {
+	engine.GET("/v1/auth", func(c *gin.Context) {
 		reason, err := forwardAuth(c, authEngine)
 		if err == nil {
 			c.String(http.StatusOK, reason)
 			return
 		}
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+	})
+	engine.GET("/healthz", func(c *gin.Context) {
+		c.Status(http.StatusOK)
+	})
+	engine.GET("/readyz", func(c *gin.Context) {
+		c.Status(http.StatusOK)
 	})
 
 	zlog.Infof("starting enforcer")
@@ -84,6 +105,11 @@ func loadRouteConfig(path string) (*auth.RouteConfig, error) {
 	if err = cfg.Validate(); err != nil {
 		return nil, err
 	}
+	b, err := yaml.Marshal(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling route config: %w", err)
+	}
+	zlog.Infof("route config:\n" + string(b))
 	return &cfg, nil
 }
 

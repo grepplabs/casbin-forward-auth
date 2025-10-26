@@ -2,24 +2,26 @@
 apiVersion: casbin.grepplabs.com/v1alpha1
 kind: Rule
 metadata:
-  name: pubsub-publish
+  name: echo-pubsub-publish
+  namespace: casbin-auth
   labels:
     casbin.grepplabs.com/model: rbac
 spec:
   ptype: "p"
   v0: "iam::123456789012:sa/9e4fdb1c-3345-4c07-98d9-73b993c9dd42"
-  v1: "pubsub:eu-central-1:123456789012:topics/orders"
+  v1: "pubsub:eu-central-1:123456789012:topics/echo"
   v2: "pubsub:publish"
 
 ---
 apiVersion: casbin.grepplabs.com/v1alpha1
 kind: Rule
 metadata:
-  name: pubsub-read
+  name: echo-pubsub-read
+  namespace: casbin-auth
   labels:
     casbin.grepplabs.com/model: rbac
 spec:
   ptype: "p"
   v0: "iam::123456789012:sa/9e4fdb1c-3345-4c07-98d9-73b993c9dd42"
-  v1: "pubsub:eu-central-1:123456789012:topics/orders/subscriptions/order-updates"
+  v1: "pubsub:eu-central-1:123456789012:topics/echo/subscriptions/order-updates"
   v2: "pubsub:read"

@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"os"
 
 	"github.com/grepplabs/casbin-traefik-forward-auth/internal/config"
 	"github.com/grepplabs/casbin-traefik-forward-auth/internal/server"
@@ -37,8 +38,9 @@ func main() {
 	/// casbin  kube adapter
 	root.Flags().BoolVar(&cfg.Casbin.AdapterKube.DisableInformer, "casbin-adapter-kube-disable-informer", false, "Disable the Casbin Kubernetes informer.")
 	root.Flags().StringVar(&cfg.Casbin.AdapterKube.Context, "casbin-adapter-kube-config-context", "", "Name of the Kubernetes context to use from the kubeconfig file.")
-	root.Flags().StringVar(&cfg.Casbin.AdapterKube.Namespace, "casbin-adapter-kube-config-namespace", "default", "Kubernetes namespace where Casbin policies are stored.")
+	root.Flags().StringVar(&cfg.Casbin.AdapterKube.Namespace, "casbin-adapter-kube-config-namespace", os.Getenv("POD_NAMESPACE"), "Kubernetes namespace where Casbin policies are stored.")
 	root.Flags().StringVar(&cfg.Casbin.AdapterKube.Path, "casbin-adapter-kube-config-path", "", "Path to the kubeconfig file.")
+	root.Flags().StringToStringVar(&cfg.Casbin.AdapterKube.Labels, "casbin-adapter-kube-config-labels", nil, "Labels to filter policies. Example: key1=val1,key2=val2.")
 
 	// Merge stdlib flags into pflag (so Cobra can see them)
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
