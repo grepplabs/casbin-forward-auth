@@ -1,0 +1,69 @@
+---
+apiVersion: casbin.grepplabs.com/v1alpha1
+kind: Rule
+metadata:
+  name: keymatch-alice-get
+  namespace: casbin-auth
+  labels:
+    casbin.grepplabs.com/model: keymatch
+spec:
+  ptype: "p"
+  v0: "alice"
+  v1: "/alice_data/*"
+  v2: "GET"
+
+---
+apiVersion: casbin.grepplabs.com/v1alpha1
+kind: Rule
+metadata:
+  name: keymatch-alice-post
+  namespace: casbin-auth
+  labels:
+    casbin.grepplabs.com/model: keymatch
+spec:
+  ptype: "p"
+  v0: "alice"
+  v1: "/alice_data/resource1"
+  v2: "POST"
+
+---
+apiVersion: casbin.grepplabs.com/v1alpha1
+kind: Rule
+metadata:
+  name: keymatch-bob-get
+  namespace: casbin-auth
+  labels:
+    casbin.grepplabs.com/model: keymatch
+spec:
+  ptype: "p"
+  v0: "bob"
+  v1: "/alice_data/resource2"
+  v2: "GET"
+
+---
+apiVersion: casbin.grepplabs.com/v1alpha1
+kind: Rule
+metadata:
+  name: keymatch-bob-post
+  namespace: casbin-auth
+  labels:
+    casbin.grepplabs.com/model: keymatch
+spec:
+  ptype: "p"
+  v0: "bob"
+  v1: "/bob_data/*"
+  v2: "POST"
+
+---
+apiVersion: casbin.grepplabs.com/v1alpha1
+kind: Rule
+metadata:
+  name: keymatch-cathy
+  namespace: casbin-auth
+  labels:
+    casbin.grepplabs.com/model: keymatch
+spec:
+  ptype: "p"
+  v0: "cathy"
+  v1: "/cathy_data"
+  v2: "(GET)|(POST)"

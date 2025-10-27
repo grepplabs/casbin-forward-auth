@@ -58,3 +58,13 @@ spec:
                 name: echo
                 port:
                   number: 80
+    - host: orders.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: echo
+                port:
+                  number: 80

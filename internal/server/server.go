@@ -28,7 +28,9 @@ const (
 	HeaderHost            = "Host"
 )
 
-func Start(cfg config.Config) error {
+func buildEngine(cfg config.Config) (*gin.Engine, Closers, error) {
+	closers := make(Closers, 0)
+
 	gin.SetMode(gin.ReleaseMode)
 
 	engineLogger := zlog.LogSink.WithOptions(zap.WithCaller(false)).With(zap.String("engine", "main"))
@@ -48,10 +50,9 @@ func Start(cfg config.Config) error {
 
 	enforcer, err := newLifecycleEnforcer(&cfg.Casbin)
 	if err != nil {
-		return fmt.Errorf("could not create enforcer: %w", err)
+		return nil, closers, fmt.Errorf("could not create enforcer: %w", err)
 	}
-	//nolint:errcheck
-	defer enforcer.Close()
+	closers.Add(enforcer)
 
 	var (
 		routeConfig *auth.RouteConfig
@@ -59,7 +60,7 @@ func Start(cfg config.Config) error {
 	if cfg.Auth.RouteConfigPath != "" {
 		routeConfig, err = loadRouteConfig(cfg.Auth.RouteConfigPath)
 		if err != nil {
-			return fmt.Errorf("error loading route config: %w", err)
+			return nil, closers, fmt.Errorf("error loading route config: %w", err)
 		}
 	} else {
 		zlog.Warnf("auth-route-config-path is not provided")
@@ -85,9 +86,17 @@ func Start(cfg config.Config) error {
 	zlog.Infof("starting enforcer")
 	err = enforcer.Start(context.Background())
 	if err != nil {
-		return fmt.Errorf("error starting enforcer: %w", err)
+		return nil, closers, fmt.Errorf("error starting enforcer: %w", err)
 	}
+	return engine, closers, nil
+}
 
+func Start(cfg config.Config) error {
+	engine, closers, err := buildEngine(cfg)
+	defer func() { _ = closers.Close() }()
+	if err != nil {
+		return fmt.Errorf("error building engine: %w", err)
+	}
 	zlog.Infof("starting server on %s", cfg.Server.Addr)
 	return engine.Run(cfg.Server.Addr)
 }
@@ -127,6 +136,8 @@ func forwardAuth(c *gin.Context, authEngine *gin.Engine) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
+	req.RemoteAddr = c.Request.RemoteAddr
+
 	// copy all headers
 	for key, values := range c.Request.Header {
 		for _, value := range values {

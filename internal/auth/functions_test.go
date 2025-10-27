@@ -89,6 +89,98 @@ func TestApplyFunction(t *testing.T) {
 			p:       pc("host", "firstlabel"),
 			wantErr: "function value missing host",
 		},
+		{
+			name: "regex happy path - first label from host",
+			val:  "eu1.pubsub.acme.cloud",
+			p: ParamConfig{
+				Name:     "topicId",
+				Function: "regex",
+				Expr:     `^([^.]+)\.`, // capture everything before first dot
+			},
+			want: "eu1",
+		},
+		{
+			name: "regex happy path - projectId from URL path",
+			val:  "/v1/projects/acme-123/topics/payments",
+			p: ParamConfig{
+				Name:     "projectId",
+				Function: "regex",
+				Expr:     `^/v1/projects/([^/]+)/topics/[^/]+$`,
+			},
+			want: "acme-123",
+		},
+		{
+			name: "regex no match -> clear error",
+			val:  "/v1/users/alice",
+			p: ParamConfig{
+				Name:     "projectId",
+				Function: "regex",
+				Expr:     `^/v1/projects/([^/]+)/topics/[^/]+$`,
+			},
+			wantErr: "no match",
+		},
+		{
+			name: "regex invalid pattern -> clear error",
+			val:  "anything",
+			p: ParamConfig{
+				Name:     "x",
+				Function: "regex",
+				Expr:     `([unclosed`, // invalid
+			},
+			wantErr: "invalid regex",
+		},
+		{
+			name: "regex pattern without capture group -> treated as no match",
+			val:  "/v1/projects/acme/topics/x",
+			p: ParamConfig{
+				Name:     "x",
+				Function: "regex",
+				Expr:     `^/v1/projects/.+/topics/.+$`, // no (...)
+			},
+			wantErr: "no match",
+		},
+		{
+			name: "regex function name is case-insensitive",
+			val:  "alice@example.com",
+			p: ParamConfig{
+				Name:     "user",
+				Function: "ReGeX",
+				Expr:     `^([^@]+)@`,
+			},
+			want: "alice",
+		},
+		{
+			name: "regex empty pattern -> error",
+			val:  "foo",
+			p: ParamConfig{
+				Name:     "x",
+				Function: "regex",
+				Expr:     "",
+			},
+			wantErr: "regex pattern (Expr) is empty",
+		},
+		{
+			name: "regex empty pattern -> error",
+			val:  "foo",
+			p: ParamConfig{
+				Name:     "x",
+				Function: "regex",
+				Expr:     "",
+			},
+			wantErr: "regex pattern (Expr) is empty",
+		},
+		{
+			name: "tolower converts uppercase to lowercase",
+			val:  "HeLLo WoRLD",
+			p:    pc("x", "tolower"),
+			want: "hello world",
+		},
+		{
+			name: "toupper converts lowercase to uppercase",
+			val:  "hello world",
+			p:    pc("x", "toupper"),
+			want: "HELLO WORLD",
+		},
 	}
 
 	for _, tt := range tests {

@@ -6,7 +6,7 @@ metadata:
   namespace: traefik
 spec:
   forwardAuth:
-    address: http://casbin-auth-rbac.casbin-auth.svc.cluster.local/v1/auth
+    address: http://casbin-auth-keymatch.casbin-auth.svc.cluster.local/v1/auth
     trustForwardHeader: true
     authResponseHeaders:
       - X-Casbin-Auth-JWT

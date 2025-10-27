@@ -23,11 +23,12 @@ const (
 	ParamSourceBasicAuthUser ParamSource = "basicAuthUser"
 	ParamSourceURL           ParamSource = "url"
 	ParamSourceURLPath       ParamSource = "urlPath"
+	ParamSourceHTTPMethod    ParamSource = "httpMethod"
 )
 
 type ParamConfig struct {
 	Name     string      `json:"name" yaml:"name" binding:"required"` // param name (e.g. "x" or "X-Name")
-	Source   ParamSource `json:"source" yaml:"source" binding:"required,oneof=path query header claim basicAuthUser url urlPath"`
+	Source   ParamSource `json:"source" yaml:"source" binding:"required,oneof=path query header claim basicAuthUser url urlPath httpMethod"`
 	Default  string      `json:"default,omitempty" yaml:"default,omitempty"`                                      // optional fallback if value is empty
 	Function string      `json:"function,omitempty" yaml:"function,omitempty" binding:"omitempty,param_function"` // function
 	Expr     string      `json:"expr,omitempty" yaml:"expr,omitempty"`                                            // expression
@@ -82,6 +83,12 @@ func (rc *RouteConfig) Validate() error {
 		return fmt.Errorf("validation error: %s", describeValidationErrors(err))
 	}
 	for ri := range rc.Routes {
+		// validate route params (and warm regex cache)
+		for pi, p := range rc.Routes[ri].Params {
+			if err := p.Validate(); err != nil {
+				return fmt.Errorf("routes[%d].params[%d]: %w", ri, pi, err)
+			}
+		}
 		for rj, rule := range rc.Routes[ri].Rules {
 			if err := rule.Validate(); err != nil {
 				return fmt.Errorf("routes[%d].rules[%d]: %w", ri, rj, err)
@@ -92,7 +99,7 @@ func (rc *RouteConfig) Validate() error {
 }
 
 // nolint: cyclop
-func (r RuleConfig) Validate() error {
+func (r *RuleConfig) Validate() error {
 	var errs []string
 
 	if len(r.Cases) == 0 {
@@ -123,7 +130,7 @@ func (r RuleConfig) Validate() error {
 
 		switch c.When {
 		case "true", "false":
-			// valid literals — do nothing
+			// valid literals - do nothing
 		default:
 			if _, err := compileWhen(c.When); err != nil {
 				errs = append(errs, fmt.Sprintf("cases[%d].when %q is invalid: %v", i, c.When, err))
@@ -135,6 +142,19 @@ func (r RuleConfig) Validate() error {
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("rule validation: %s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
+func (p *ParamConfig) Validate() error {
+	if !strings.EqualFold(strings.TrimSpace(p.Function), "regex") {
+		return nil
+	}
+	if strings.TrimSpace(p.Expr) == "" {
+		return fmt.Errorf("regex pattern (Expr) is empty for %s", p.Name)
+	}
+	if _, err := getCachedRegex(p.Expr); err != nil {
+		return fmt.Errorf("invalid regex %q: %w", p.Expr, err)
 	}
 	return nil
 }

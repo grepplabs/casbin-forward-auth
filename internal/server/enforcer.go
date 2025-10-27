@@ -2,7 +2,6 @@ package server
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -70,7 +69,7 @@ func newInformer(cfg *config.CasbinConfig, enforcer casbin.IEnforcer) (Starter, 
 	if strings.ToLower(cfg.Adapter) != config.AdapterKube || cfg.AdapterKube.DisableInformer {
 		return nil, nil, nil
 	}
-	zlog.Infof("init 'kube' informer for namespace '%s' labels '%v'", cfg.AdapterKube.KubeConfig.Namespace, cfg.AdapterKube.KubeConfig.Labels)
+	zlog.Infof("init 'kube' informer for namespace '%s' labels '%v'", cfg.AdapterKube.Namespace, cfg.AdapterKube.Labels)
 
 	informer, err := casbinkube.NewInformer(&casbinkube.InformerConfig{KubeConfig: cfg.AdapterKube.KubeConfig}, enforcer)
 	if err != nil {
@@ -96,13 +95,13 @@ type Starter interface {
 
 type LifecycleEnforcer struct {
 	*casbin.SyncedEnforcer
-	closers []io.Closer
+	closers Closers
 	start   Starter
 }
 
 func (e *LifecycleEnforcer) AddCloser(c io.Closer) {
 	if c != nil {
-		e.closers = append(e.closers, c)
+		e.closers.Add(c)
 	}
 }
 
@@ -114,27 +113,12 @@ func (e *LifecycleEnforcer) Close() error {
 	if e == nil {
 		return nil
 	}
-	var errs []error
-	for _, c := range e.closers {
-		if c != nil {
-			if err := c.Close(); err != nil {
-				errs = append(errs, err)
-			}
-		}
-	}
-	return errors.Join(errs...)
+	return e.closers.Close()
 }
 
 func (e *LifecycleEnforcer) Start(ctx context.Context) error {
 	if e.start != nil {
 		return e.start.Start(ctx)
 	}
-	return nil
-}
-
-type closeFunc func()
-
-func (f closeFunc) Close() error {
-	f()
 	return nil
 }

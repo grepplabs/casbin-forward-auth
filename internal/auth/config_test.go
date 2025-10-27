@@ -96,10 +96,19 @@ func TestRuleConfig_Validate(t *testing.T) {
 			wantErr: "ParamNames must be empty when cases are present",
 		},
 		{
+			name: "error when a Case has empty when",
+			r: RuleConfig{
+				Cases: []RuleCase{
+					{Format: "%s", When: "", ParamNames: []string{"id"}},
+				},
+			},
+			wantErr: "cases[0].when is required",
+		},
+		{
 			name: "error when a Case has empty format",
 			r: RuleConfig{
 				Cases: []RuleCase{
-					{Format: "", ParamNames: []string{"id"}},
+					{Format: "", When: "true", ParamNames: []string{"id"}},
 				},
 			},
 			wantErr: "cases[0].format is required",
@@ -108,7 +117,7 @@ func TestRuleConfig_Validate(t *testing.T) {
 			name: "error when Case %s count mismatches",
 			r: RuleConfig{
 				Cases: []RuleCase{
-					{Format: "%s-%s", ParamNames: []string{"onlyOne"}},
+					{Format: "%s-%s", When: "true", ParamNames: []string{"onlyOne"}},
 				},
 			},
 			wantErr: "cases[0].format %s count (2) must equal ParamNames length (1)",
@@ -217,7 +226,7 @@ func TestRuleConfig_Validate_AllErrorsTogether(t *testing.T) {
 		Format:     "%s",                 // should be empty because Cases present
 		ParamNames: []string{"shouldnt"}, // must be empty when Cases present
 		Cases: []RuleCase{
-			{Format: "%s-%s", ParamNames: []string{"onlyOne"}}, // mismatch inside case
+			{Format: "%s-%s", When: "true", ParamNames: []string{"onlyOne"}}, // mismatch inside case
 		},
 	}
 	err := r.Validate()
@@ -311,6 +320,81 @@ func TestRouteConfig_Validate_ParamsAndRulesTogether(t *testing.T) {
 			},
 		},
 	}
+	require.NoError(t, cfg.Validate())
+}
+
+func TestRouteConfig_Validate_ParamRegex_EmptyPattern(t *testing.T) {
+	cfg := &RouteConfig{
+		Routes: []Route{
+			{
+				HttpMethod: "GET",
+				Params: []ParamConfig{
+					{
+						Name:     "projectId",
+						Source:   ParamSourceURLPath,
+						Function: "regex",
+						Expr:     "", // <-- empty pattern should error
+					},
+				},
+			},
+		},
+	}
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	msg := err.Error()
+
+	assert.Contains(t, msg, "routes[0].params[0]:")
+	assert.Contains(t, msg, "regex pattern (Expr) is empty")
+	assert.Contains(t, msg, "projectId")
+}
+
+func TestRouteConfig_Validate_ParamRegex_InvalidPattern(t *testing.T) {
+	cfg := &RouteConfig{
+		Routes: []Route{
+			{
+				HttpMethod: "POST",
+				Params: []ParamConfig{
+					{
+						Name:     "subscriptionId",
+						Source:   ParamSourceURLPath,
+						Function: "regex",
+						Expr:     `([unclosed`, // <-- invalid regex
+					},
+				},
+			},
+		},
+	}
+
+	err := cfg.Validate()
+	require.Error(t, err)
+	msg := err.Error()
+
+	assert.Contains(t, msg, "routes[0].params[0]:")
+	assert.Contains(t, msg, "invalid regex")
+	assert.Contains(t, msg, "([unclosed")
+}
+
+func TestRouteConfig_Validate_ParamRegex_HappyPath(t *testing.T) {
+	cfg := &RouteConfig{
+		Routes: []Route{
+			{
+				HttpMethod: "GET",
+				Params: []ParamConfig{
+					{
+						Name:     "projectId",
+						Source:   ParamSourceURLPath,
+						Function: "regex",
+						Expr:     `^/v1/projects/([^/]+)/topics/[^/]+$`, // valid pattern
+					},
+				},
+				Rules: []RuleConfig{
+					{Format: "%s", ParamNames: []string{"projectId"}},
+				},
+			},
+		},
+	}
+
 	require.NoError(t, cfg.Validate())
 }
 

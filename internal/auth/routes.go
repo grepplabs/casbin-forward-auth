@@ -118,6 +118,8 @@ func getValue(c *gin.Context, p ParamConfig) (string, error) {
 		if val == "" {
 			val = "/"
 		}
+	case ParamSourceHTTPMethod:
+		val = c.Request.Method
 	default:
 		return "", fmt.Errorf("unknown source for %s", p.Source)
 	}

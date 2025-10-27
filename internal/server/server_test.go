@@ -121,7 +121,7 @@ routes:
   - httpMethod: WRONG
     relativePaths: ["/x"]
 `)
-	require.NoError(t, os.WriteFile(p, yml, 0x180)) // 0o600 == 0x180
+	require.NoError(t, os.WriteFile(p, yml, fileModeUserRW))
 
 	cfg, err := loadRouteConfig(p)
 	require.Error(t, err, "expected validation error for httpMethod oneof")
@@ -147,4 +147,41 @@ func Test_forwardAuth_RejectsWhenAuthEngineReturnsNonOK(t *testing.T) {
 	_, err := forwardAuth(c, authEngine)
 	require.Error(t, err)
 	assert.Equal(t, "is forbidden", err.Error())
+}
+
+func Test_buildEngine_TestEndpoints(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	cfg := newTestFileAdapterConfig(t, "rbac_model.conf", "", "")
+	engine, closers, err := buildEngine(cfg)
+	require.NoError(t, err)
+	defer closers.Close()
+
+	t.Run("healthz OK", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+		w := httptest.NewRecorder()
+		engine.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("readyz OK", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+		w := httptest.NewRecorder()
+		engine.ServeHTTP(w, req)
+		require.Equal(t, http.StatusOK, w.Code)
+	})
+
+	t.Run("auth without forwarded headers Forbidden", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
+		w := httptest.NewRecorder()
+		engine.ServeHTTP(w, req)
+		require.Equal(t, http.StatusForbidden, w.Code)
+	})
+
+	t.Run("unknown route returns NotFound", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/anything", nil)
+		w := httptest.NewRecorder()
+		engine.ServeHTTP(w, req)
+		require.Equal(t, http.StatusNotFound, w.Code)
+	})
 }

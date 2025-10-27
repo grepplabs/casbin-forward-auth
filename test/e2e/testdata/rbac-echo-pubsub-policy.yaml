@@ -9,7 +9,7 @@ metadata:
 spec:
   ptype: "p"
   v0: "iam::123456789012:sa/9e4fdb1c-3345-4c07-98d9-73b993c9dd42"
-  v1: "pubsub:eu-central-1:123456789012:topics/echo"
+  v1: "pubsub:eu-central-1:123456789012:topics/orders"
   v2: "pubsub:publish"
 
 ---
@@ -23,5 +23,5 @@ metadata:
 spec:
   ptype: "p"
   v0: "iam::123456789012:sa/9e4fdb1c-3345-4c07-98d9-73b993c9dd42"
-  v1: "pubsub:eu-central-1:123456789012:topics/echo/subscriptions/order-updates"
+  v1: "pubsub:eu-central-1:123456789012:topics/orders/subscriptions/order-updates"
   v2: "pubsub:read"

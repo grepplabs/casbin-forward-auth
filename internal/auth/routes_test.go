@@ -508,6 +508,86 @@ func TestGetValue_BasicAuthUser(t *testing.T) {
 	}
 }
 
+func TestGetValue_HTTPMethod(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	type tc struct {
+		name    string
+		method  string
+		rawURL  string
+		param   ParamConfig
+		want    string
+		wantErr bool
+	}
+
+	tests := []tc{
+		{
+			name:   "returns GET",
+			method: http.MethodGet,
+			rawURL: "https://example.com/api/v1/resources",
+			param: ParamConfig{
+				Source: ParamSourceHTTPMethod,
+				Name:   "httpMethod",
+			},
+			want: http.MethodGet,
+		},
+		{
+			name:   "returns POST",
+			method: http.MethodPost,
+			rawURL: "https://example.com/api/v1/resources",
+			param: ParamConfig{
+				Source: ParamSourceHTTPMethod,
+				Name:   "httpMethod",
+			},
+			want: http.MethodPost,
+		},
+		{
+			name:   "returns PUT",
+			method: http.MethodPut,
+			rawURL: "https://example.com/api/v1/resources/abc",
+			param: ParamConfig{
+				Source: ParamSourceHTTPMethod,
+				Name:   "httpMethod",
+			},
+			want: http.MethodPut,
+		},
+		{
+			name:   "returns DELETE",
+			method: http.MethodDelete,
+			rawURL: "https://example.com/api/v1/resources/123",
+			param: ParamConfig{
+				Source: ParamSourceHTTPMethod,
+				Name:   "httpMethod",
+			},
+			want: http.MethodDelete,
+		},
+		{
+			name:   "no default used for non-empty method",
+			method: http.MethodPatch,
+			rawURL: "https://example.com/api/v1/resources/123",
+			param: ParamConfig{
+				Source:  ParamSourceHTTPMethod,
+				Name:    "httpMethod",
+				Default: "SHOULD_NOT_USE",
+			},
+			want: http.MethodPatch,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			c := ctxWithURL(t, tt.method, tt.rawURL)
+			got, err := getValue(c, tt.param)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestGetValue_UnknownSource(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 

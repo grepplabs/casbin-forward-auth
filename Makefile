@@ -5,7 +5,6 @@ SHELL := /usr/bin/env bash
 ROOT_DIR       = $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 GOLANGCI_LINT_VERSION := v2.4.0
-CHAINSAW_VERSION := v0.2.13
 
 LOCAL_IMAGE := local/casbin-traefik-forward-auth:latest
 LOCAL_CLUSTER_ROOT_DIR ?= $(ROOT_DIR)/test/scripts/local/local-cluster
@@ -16,52 +15,55 @@ LOCAL_KUBECONFIG ?= $(ROOT_DIR)/kubeconfig-$(LOCAL_CLUSTER_NAME)
 ##@ General
 
 .PHONY: help
-help: ## Display this help.
+help: ## display this help.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
 
 
 ## Tool Binaries
 GO_RUN := go run
 GOLANGCI_LINT ?= $(GO_RUN) github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION)
-export CHAINSAW ?= $(GO_RUN) github.com/kyverno/chainsaw@$(CHAINSAW_VERSION)
 
 .PHONY: lint
-lint: ## Run golangci-lint linter
+lint: ## run golangci-lint linter
 	$(GOLANGCI_LINT) run
 
 .PHONY: lint-fix
-lint-fix: ## Run golangci-lint linter and perform fixes
+lint-fix: ## run golangci-lint linter and perform fixes
 	$(GOLANGCI_LINT) run --fix
 
 .PHONY: lint-config
-lint-config: ## Verify golangci-lint linter configuration
+lint-config: ## verify golangci-lint linter configuration
 	$(GOLANGCI_LINT) config verify
 
 
 ##@ Development
 
 .PHONY: fmt
-fmt: ## Run go fmt against code.
+fmt: ## run go fmt against code
 	go fmt ./...
 
 .PHONY: vet
-vet: ## Run go vet against code.
+vet: ## run go vet against code
 	go vet ./...
 
 .PHONY: tidy
-tidy: ## Run go mod tidy.
+tidy: ## run go mod tidy
 	go mod tidy
 
 ##@ Build
 
 .PHONY: build
-build: ## Build binary.
+build: ## build binary
 	go build -gcflags "all=-N -l" -o ./casbin-traefik-forward-auth ./cmd/casbin-traefik-forward-auth
+
+.PHONY: clean
+clean: local-cluster-delete ## clean
+	rm -f ./casbin-traefik-forward-auth
 
 ##@ Docker
 
 .PHONY: docker-build
-docker-build: ## Build docker image.
+docker-build: ## build docker image
 	docker build -t ${LOCAL_IMAGE} .
 
 ##@ Run targets
@@ -69,13 +71,18 @@ docker-build: ## Build docker image.
 run-server: ## run server
 	go run cmd/casbin-traefik-forward-auth/main.go --auth-route-config-path=examples/pubsub-routes-expr.yaml
 
+build-run-server: build ## build and run server
+	./casbin-traefik-forward-auth --auth-route-config-path=examples/pubsub-routes-expr.yaml
+
 ##@ Local cluster
 
 .PHONY: local-cluster-create
 local-cluster-create:  ## create local kind cluster
 	USER_HOME="$(HOME)" yq 'with(.nodes[].extraMounts; . += [{"containerPath": "/var/lib/kubelet/config.json", "hostPath": strenv(USER_HOME) + "/.docker/config.json"}])' \
 		< "$(LOCAL_CLUSTER_ROOT_DIR)/kind-config.yaml" > "$(LOCAL_KIND_CONFIG)"
-	kind create cluster --name "$(LOCAL_CLUSTER_NAME)" --config "$(LOCAL_KIND_CONFIG)" --kubeconfig "$(LOCAL_KUBECONFIG)"
+	kind create cluster --name "${LOCAL_CLUSTER_NAME}" --config "${LOCAL_KIND_CONFIG}" --kubeconfig "${LOCAL_KUBECONFIG}" \
+	  || (echo "Cluster may already exist, waiting for it to become ready..."; \
+		  KUBECONFIG="${LOCAL_KUBECONFIG}" kubectl wait --for=condition=Ready nodes --all --timeout=120s)
 
 .PHONY: local-cluster-delete
 local-cluster-delete:  ## delete local kind cluster
@@ -90,6 +97,7 @@ local-apply:
 	kubectl kustomize $(LOCAL_CLUSTER_ROOT_DIR)/../traefik-crds --enable-helm | kubectl apply --server-side=true -f -
 	kubectl kustomize $(LOCAL_CLUSTER_ROOT_DIR) --enable-helm | kubectl apply --server-side=true -f -
 	- kubectl delete pod -n casbin-auth --all
+	kubectl wait --for=condition=available deployment --all -A --timeout=300s
 
 .PHONY: local-deploy
 local-deploy: docker-build local-apply ## deploy to local kind cluster
@@ -127,30 +135,33 @@ example-read: ## read data
 
 example-all: example-grant example-publish example-read example-revoke
 
-##@ Traefik test targets
+##@ E2E examples
 
-TESTDATA_DIR := test/scripts/chainsaw/testdata/
+E2E_TESTDATA_DIR := test/e2e/testdata/
 
-traefik-grant: export KUBECONFIG=$(LOCAL_KUBECONFIG)
-traefik-grant: ## grant access
-	kubectl apply -f $(TESTDATA_DIR)/echo-pubsub-policy.yaml
+e2e-grant: export KUBECONFIG=$(LOCAL_KUBECONFIG)
+e2e-grant: ## grant access
+	kubectl apply -f $(E2E_TESTDATA_DIR)/rbac-echo-pubsub-policy.yaml
 
-traefik-revoke: export KUBECONFIG=$(LOCAL_KUBECONFIG)
-traefik-revoke: ## revoke access
-	kubectl delete -f $(TESTDATA_DIR)/echo-pubsub-policy.yaml
+e2e-revoke: export KUBECONFIG=$(LOCAL_KUBECONFIG)
+e2e-revoke: ## revoke access
+	kubectl delete -f $(E2E_TESTDATA_DIR)/rbac-echo-pubsub-policy.yaml
 
-traefik-publish: ## publish data
-	curl -v -H "Authorization: Bearer $(TOKEN)" -H 'Host: echo.local' -X POST http://localhost:30080/v1alpha/publish
+e2e-publish: ## publish data
+	curl -v -H "Authorization: Bearer $(TOKEN)" -H 'Host: orders.local' -X POST http://localhost:30080/v1alpha/publish
 
-traefik-read: ## read data
-	curl -v -H "Authorization: Bearer $(TOKEN)" -H 'Host: echo.local' -X POST http://localhost:30080/v1alpha/subscriptions/order-updates/pull
-	curl -v -H "Authorization: Bearer $(TOKEN)" -H 'Host: echo.local' -X POST http://localhost:30080/v1alpha/subscriptions/order-updates/ack
-	curl -v -H "Authorization: Bearer $(TOKEN)" -H 'Host: echo.local' -X POST http://localhost:30080/v1alpha/subscriptions/order-updates/nack
+e2e-read: ## read data
+	curl -v -H "Authorization: Bearer $(TOKEN)" -H 'Host: orders.local' -X POST http://localhost:30080/v1alpha/subscriptions/order-updates/pull
+	curl -v -H "Authorization: Bearer $(TOKEN)" -H 'Host: orders.local' -X POST http://localhost:30080/v1alpha/subscriptions/order-updates/ack
+	curl -v -H "Authorization: Bearer $(TOKEN)" -H 'Host: orders.local' -X POST http://localhost:30080/v1alpha/subscriptions/order-updates/nack
 
-traefik-all: traefik-grant traefik-publish traefik-read traefik-revoke
+e2e-all: e2e-grant e2e-publish e2e-read e2e-revoke
 
 ##@ E2E tests
 
-.PHONY: chainsaw-test
-chainsaw-test: docker-build ## Run the e2e tests using chainsaw
-	@test/scripts/chainsaw/chainsaw-test.sh "1.32"
+.PHONY: test-e2e
+test-e2e: local-init e2e-test ## init local cluster and run the e2e tests
+
+.PHONY: e2e-test
+e2e-test: ## run the e2e tests
+	cd test/e2e && go test -v -count=1 ./...
