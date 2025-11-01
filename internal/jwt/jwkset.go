@@ -1,0 +1,143 @@
+package jwt
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/grepplabs/loggo/zlog"
+	"github.com/lestrrat-go/httprc/v3"
+	"github.com/lestrrat-go/httprc/v3/tracesink"
+	"github.com/lestrrat-go/jwx/v3/jwk"
+
+	"github.com/grepplabs/casbin-traefik-forward-auth/internal/config"
+)
+
+func newJWKSet(ctx context.Context, config config.JWTConfig) (jwk.Set, error) {
+	if isFileSet(&config) {
+		return newFileJWKSet(config)
+	} else {
+		if _, err := url.ParseRequestURI(config.JWKSURL); err != nil {
+			return nil, fmt.Errorf("invalid JWKS URL: %w", err)
+		}
+		return newHttpJWKSet(ctx, config)
+	}
+}
+
+func isFileSet(config *config.JWTConfig) bool {
+	return !strings.HasPrefix(config.JWKSURL, "http://") && !strings.HasPrefix(config.JWKSURL, "https://")
+}
+
+func newHttpJWKSet(ctx context.Context, config config.JWTConfig) (jwk.Set, error) {
+	c, err := jwk.NewCache(
+		ctx,
+		httprc.NewClient(
+			httprc.WithTraceSink(tracesink.NewSlog(newZapSlogLogger())),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("create jwk set: %w", err)
+	}
+	zlog.Infof("registering new jwk cache for %s", config.JWKSURL)
+
+	err = c.Register(ctx, config.JWKSURL,
+		jwk.WithMaxInterval(config.MaxRefreshInterval),
+		jwk.WithMinInterval(config.MinRefreshInterval),
+		jwk.WithWaitReady(false), // register non-blocking
+	)
+	if err != nil {
+		return nil, fmt.Errorf("register jwk set: %w", err)
+	}
+
+	if err := waitForJWKRefresh(ctx, c, config); err != nil {
+		return nil, fmt.Errorf("initial jwks fetch failed for %s: %w", config.JWKSURL, err)
+	}
+
+	cached, err := c.CachedSet(config.JWKSURL)
+	if err != nil {
+		return nil, fmt.Errorf("cache jwk set: %w", err)
+	}
+	return cached, nil
+}
+
+func waitForJWKRefresh(ctx context.Context, cache *jwk.Cache, config config.JWTConfig) error {
+	totalTimeout := config.InitTimeout
+	if totalTimeout <= 0 {
+		totalTimeout = 60 * time.Second
+	}
+	perCallTimeout := config.RefreshTimeout
+	if perCallTimeout <= 0 {
+		perCallTimeout = 5 * time.Second
+	}
+
+	deadline := time.Now().Add(totalTimeout)
+	var (
+		lastErr     error
+		refreshTick = 500 * time.Millisecond
+	)
+
+	for {
+		callCtx, cancel := context.WithTimeout(ctx, perCallTimeout)
+		_, err := cache.Refresh(callCtx, config.JWKSURL)
+		cancel()
+		if err == nil {
+			if cached, err := cache.CachedSet(config.JWKSURL); err == nil && cached.Len() > 0 {
+				return nil
+			}
+			lastErr = errors.New("jwks cache still empty after refresh")
+		} else {
+			lastErr = fmt.Errorf("refresh failed: %w", err)
+		}
+
+		if time.Now().After(deadline) {
+			return fmt.Errorf(
+				"initial jwks fetch failed for %s after %s: %w",
+				config.JWKSURL, totalTimeout, lastErr,
+			)
+		}
+		timer := time.NewTimer(refreshTick)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return fmt.Errorf("initial jwks fetch aborted: %w", ctx.Err())
+		case <-timer.C:
+		}
+	}
+}
+
+func newFileJWKSet(config config.JWTConfig) (jwk.Set, error) {
+	path := strings.TrimPrefix(config.JWKSURL, "file://")
+
+	options := make([]jwk.ReadFileOption, 0)
+	if config.UseX509 {
+		options = append(options, jwk.WithX509(true))
+	}
+	jwks, err := jwk.ReadFile(path, options...)
+	if err != nil {
+		return nil, fmt.Errorf("read jwk set: %w", err)
+	}
+	return jwks, nil
+}
+
+type zapSlogLogger struct{}
+
+func newZapSlogLogger() *zapSlogLogger {
+	return &zapSlogLogger{}
+}
+
+func (l *zapSlogLogger) Log(_ context.Context, level slog.Level, msg string, args ...any) {
+	switch {
+	case level <= slog.LevelDebug:
+		zlog.Debugf(msg, args...)
+	case level <= slog.LevelInfo:
+		zlog.Infof(msg, args...)
+	case level <= slog.LevelWarn:
+		zlog.Warnf(msg, args...)
+	default:
+		zlog.Errorf(msg, args...)
+	}
+}

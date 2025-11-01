@@ -1,6 +1,7 @@
 package config
 
 import (
+	"errors"
 	"time"
 
 	casbinkube "github.com/grepplabs/casbin-kube"
@@ -27,6 +28,7 @@ type Config struct {
 
 type AuthConfig struct {
 	RouteConfigPath string
+	JWTConfig       JWTConfig
 }
 
 type CasbinConfig struct {
@@ -44,4 +46,54 @@ type CasbinAdapterKubeConfig struct {
 
 type CasbinAdapterFileConfig struct {
 	PolicyPath string
+}
+
+type JWTConfig struct {
+	// Enables or disables JWT validation
+	Enabled bool
+
+	// URL to the JWKS endpoint, e.g. "https://issuer.example.com/.well-known/jwks.json"
+	JWKSURL string
+
+	// Expected issuer ("iss" claim)
+	Issuer string
+
+	// Expected audience ("aud" claim)
+	Audience string
+
+	// Optional clock skew tolerance for exp/nbf/etc. e.g. 30 * time.Second. Zero means "no extra skew".
+	Skew time.Duration
+
+	// Specifies how long to wait for the initial JWKS retrieval during startup or registration before timing out.
+	InitTimeout time.Duration
+
+	// RefreshTimeout specifies the maximum duration allowed for each individual
+	// JWKS refresh HTTP request (both during initial fetch and background updates).
+	RefreshTimeout time.Duration
+
+	// MinRefreshInterval specifies the minimum duration between JWKS refresh attempts.
+	MinRefreshInterval time.Duration
+
+	// MaxRefreshInterval specifies the maximum duration between JWKS refresh attempts.
+	MaxRefreshInterval time.Duration
+
+	// UseX509 indicates whether the JWKS file contains X.509-encoded keys (e.g., PEM certificates)
+	// instead of standard JWK JSON. When set to true, the file will be read and parsed as X.509.
+	UseX509 bool
+}
+
+func (c *JWTConfig) Validate() error {
+	if !c.Enabled {
+		return nil
+	}
+	if c.JWKSURL == "" {
+		return errors.New("jwt-jwks-url must be set when JWT validation is enabled")
+	}
+	if c.Issuer == "" {
+		return errors.New("jwt-issuer must be set when JWT validation is enabled")
+	}
+	if c.Audience == "" {
+		return errors.New("jwt-audience must be set when JWT validation is enabled")
+	}
+	return nil
 }

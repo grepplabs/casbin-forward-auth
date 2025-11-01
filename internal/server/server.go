@@ -13,6 +13,7 @@ import (
 	ginzap "github.com/gin-contrib/zap"
 	"github.com/gin-gonic/gin"
 	"github.com/grepplabs/casbin-traefik-forward-auth/internal/auth"
+	"github.com/grepplabs/casbin-traefik-forward-auth/internal/jwt"
 	"github.com/grepplabs/loggo/zlog"
 	ginprometheus "github.com/zsais/go-gin-prometheus"
 	"go.uber.org/zap"
@@ -28,6 +29,10 @@ const (
 	HeaderForwardedURI    = "X-Forwarded-Uri"
 	HeaderForwardedFor    = "X-Forwarded-For"
 	HeaderHost            = "Host"
+)
+
+var (
+	ErrUnauthorized = errors.New("unauthorized")
 )
 
 // nolint: funlen
@@ -53,6 +58,17 @@ func buildEngine(cfg config.Config) (*gin.Engine, Closers, error) {
 		TimeFormat: time.RFC3339,
 	}))
 	authEngine.Use(ginzap.RecoveryWithZap(authEngineLogger, true))
+	if cfg.Auth.JWTConfig.Enabled {
+		if err := cfg.Auth.JWTConfig.Validate(); err != nil {
+			return nil, closers, fmt.Errorf("invalid JWT config: %w", err)
+		}
+		verifier, err := jwt.NewJWTVerifier(context.Background(), cfg.Auth.JWTConfig)
+		if err != nil {
+			return nil, closers, fmt.Errorf("invalid JWT verifier: %w", err)
+		}
+		closers.Add(verifier)
+		authEngine.Use(verifier.Middleware())
+	}
 
 	enforcer, err := newLifecycleEnforcer(&cfg.Casbin)
 	if err != nil {
@@ -78,6 +94,10 @@ func buildEngine(cfg config.Config) (*gin.Engine, Closers, error) {
 		reason, err := forwardAuth(c, authEngine)
 		if err == nil {
 			c.String(http.StatusOK, reason)
+			return
+		}
+		if errors.Is(err, ErrUnauthorized) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 			return
 		}
 		c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
@@ -172,6 +192,9 @@ func forwardAuth(c *gin.Context, authEngine *gin.Engine) (string, error) {
 	authEngine.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		lw.V(1).Info("forward auth rejected", "code", w.Code)
+		if w.Code == http.StatusUnauthorized {
+			return "", fmt.Errorf("%w: %s", ErrUnauthorized, w.Body.String())
+		}
 		return "", errors.New(w.Body.String())
 	}
 	return w.Body.String(), nil

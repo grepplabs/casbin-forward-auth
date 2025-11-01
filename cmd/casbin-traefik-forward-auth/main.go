@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"os"
+	"time"
 
 	"github.com/grepplabs/casbin-traefik-forward-auth/internal/config"
 	"github.com/grepplabs/casbin-traefik-forward-auth/internal/server"
@@ -41,6 +42,18 @@ func main() {
 	root.Flags().StringVar(&cfg.Casbin.AdapterKube.Namespace, "casbin-adapter-kube-config-namespace", os.Getenv("POD_NAMESPACE"), "Kubernetes namespace where Casbin policies are stored.")
 	root.Flags().StringVar(&cfg.Casbin.AdapterKube.Path, "casbin-adapter-kube-config-path", "", "Path to the kubeconfig file.")
 	root.Flags().StringToStringVar(&cfg.Casbin.AdapterKube.Labels, "casbin-adapter-kube-config-labels", nil, "Labels to filter policies. Example: key1=val1,key2=val2.")
+
+	/// jwt flags
+	root.Flags().BoolVar(&cfg.Auth.JWTConfig.Enabled, "jwt-enabled", false, "Enable JWT verification for incoming requests. When enabled, 'jwt-jwks-url', 'jwt-issuer', and 'jwt-audience' must be set.")
+	root.Flags().StringVar(&cfg.Auth.JWTConfig.JWKSURL, "jwt-jwks-url", "", "URL or file path to the JWKS source (e.g., https://issuer.example.com/.well-known/jwks.json or file:///etc/jwks/keys.json).")
+	root.Flags().StringVar(&cfg.Auth.JWTConfig.Issuer, "jwt-issuer", "", "Expected JWT issuer ('iss' claim).")
+	root.Flags().StringVar(&cfg.Auth.JWTConfig.Audience, "jwt-audience", "", "Expected JWT audience ('aud' claim).")
+	root.Flags().DurationVar(&cfg.Auth.JWTConfig.Skew, "jwt-skew", 0, "Clock skew tolerance for exp/nbf claims (e.g. 30s).")
+	root.Flags().DurationVar(&cfg.Auth.JWTConfig.InitTimeout, "jwt-init-timeout", 15*time.Second, "Maximum time to wait for initial JWKS fetch during startup.")
+	root.Flags().DurationVar(&cfg.Auth.JWTConfig.RefreshTimeout, "jwt-refresh-timeout", 2*time.Second, "Timeout for individual JWKS refresh requests.")
+	root.Flags().DurationVar(&cfg.Auth.JWTConfig.MinRefreshInterval, "jwt-min-refresh-interval", 0, "Minimum interval between JWKS refresh attempts.")
+	root.Flags().DurationVar(&cfg.Auth.JWTConfig.MaxRefreshInterval, "jwt-max-refresh-interval", 0, "Maximum interval between JWKS refresh attempts.")
+	root.Flags().BoolVar(&cfg.Auth.JWTConfig.UseX509, "jwt-use-x509", false, "Indicates that the JWKS source contains X.509-encoded keys (PEM certificates) instead of standard JWK JSON.")
 
 	// Merge stdlib flags into pflag (so Cobra can see them)
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
