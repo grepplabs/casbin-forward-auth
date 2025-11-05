@@ -14,6 +14,7 @@ import (
 
 var cfg config.Config
 
+// nolint:funlen
 func main() {
 	root := &cobra.Command{
 		Use:   "server",
@@ -26,6 +27,15 @@ func main() {
 
 	// server flags
 	root.Flags().StringVar(&cfg.Server.Addr, "server-addr", ":8080", "Server listen address.")
+	root.Flags().IntVar(&cfg.Server.AdminPort, "server-admin-port", 0, "Admin server port (0 to disable).")
+
+	root.Flags().BoolVar(&cfg.Server.TLS.Enable, "server-tls-enable", false, "Enable server-side TLS.")
+	root.Flags().DurationVar(&cfg.Server.TLS.Refresh, "server-tls-refresh", 0, "Interval for refreshing server TLS certificates. Set to 0 to disable auto-refresh.")
+	root.Flags().StringVar(&cfg.Server.TLS.KeyPassword, "server-tls-key-password", "", "Password to decrypt RSA private key.")
+	root.Flags().StringVar(&cfg.Server.TLS.File.Key, "server-tls-file-key", "", "Path to the server TLS private key file.")
+	root.Flags().StringVar(&cfg.Server.TLS.File.Cert, "server-tls-file-cert", "", "Path to the server TLS certificate file.")
+	root.Flags().StringVar(&cfg.Server.TLS.File.ClientCAs, "server-tls-file-client-ca", "", "Path to the server client CA file for client verification.")
+	root.Flags().StringVar(&cfg.Server.TLS.File.ClientCRL, "server-tls-file-client-crl", "", "Path to the TLS X509 CRL signed by the client CA. If unspecified, only the client CA is verified.")
 
 	// auth flags
 	root.Flags().StringVar(&cfg.Auth.RouteConfigPath, "auth-route-config-path", "", "Path to the config YAML file containing route authorization rules.")

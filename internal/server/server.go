@@ -2,8 +2,11 @@ package server
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
+	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,7 +17,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/grepplabs/casbin-traefik-forward-auth/internal/auth"
 	"github.com/grepplabs/casbin-traefik-forward-auth/internal/jwt"
+	tlsserverconfig "github.com/grepplabs/cert-source/tls/server/config"
 	"github.com/grepplabs/loggo/zlog"
+	slogzap "github.com/samber/slog-zap/v2"
 	ginprometheus "github.com/zsais/go-gin-prometheus"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
@@ -135,8 +140,26 @@ func Start(cfg config.Config) error {
 	if err != nil {
 		return fmt.Errorf("error building engine: %w", err)
 	}
-	zlog.Infof("starting server on %s (version: %s)", cfg.Server.Addr, getVersion())
-	return engine.Run(cfg.Server.Addr)
+
+	if cfg.Server.TLS.Enable {
+		sl := slog.New(slogzap.Option{Logger: zlog.LogSink}.NewZapHandler())
+		tlsConfig, err := tlsserverconfig.GetServerTLSConfig(sl, &cfg.Server.TLS)
+		if err != nil {
+			return fmt.Errorf("error creating TLS server config: %w", err)
+		}
+		//nolint:noctx
+		ln, err := net.Listen("tcp", cfg.Server.Addr)
+		if err != nil {
+			return fmt.Errorf("error listening on %s: %w", cfg.Server.Addr, err)
+		}
+		tlsLn := tls.NewListener(ln, tlsConfig)
+
+		zlog.Infof("starting TLS server on %s (version: %s)", cfg.Server.Addr, getVersion())
+		return engine.RunListener(tlsLn)
+	} else {
+		zlog.Infof("starting server on %s (version: %s)", cfg.Server.Addr, getVersion())
+		return engine.Run(cfg.Server.Addr)
+	}
 }
 
 func getVersion() string {

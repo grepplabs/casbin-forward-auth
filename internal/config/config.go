@@ -19,7 +19,9 @@ const (
 )
 
 type ServerConfig struct {
-	Addr string
+	Addr      string
+	AdminPort int
+	TLS       tlsconfig.TLSServerConfig
 }
 type Config struct {
 	Server ServerConfig

@@ -1,0 +1,18 @@
+{
+  "signing": {
+    "default": {
+      "usages": ["digital signature", "key encipherment"],
+      "expiry": "175200h"
+    },
+    "profiles": {
+      "casbin-auth-server": {
+        "usages": ["digital signature", "key encipherment", "server auth"],
+        "expiry": "175200h"
+      },
+      "casbin-auth-client": {
+        "usages": ["digital signature", "key encipherment", "client auth"],
+        "expiry": "175200h"
+      }
+    }
+  }
+}
