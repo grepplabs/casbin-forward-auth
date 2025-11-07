@@ -10,7 +10,7 @@ require (
 	github.com/go-playground/validator/v10 v10.28.0
 	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/grepplabs/casbin-kube v0.0.6
-	github.com/grepplabs/cert-source v0.0.8
+	github.com/grepplabs/cert-source v0.0.9
 	github.com/grepplabs/loggo v0.0.3
 	github.com/lestrrat-go/httprc/v3 v3.0.1
 	github.com/lestrrat-go/jwx/v3 v3.0.12
