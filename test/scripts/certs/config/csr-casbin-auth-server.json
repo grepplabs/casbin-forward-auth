@@ -1,0 +1,17 @@
+{
+  "CN": "casbin-auth.casbin-auth.svc.cluster.local",
+  "hosts": [
+    "*.casbin-auth.casbin-auth.svc",
+    "*.casbin-auth.casbin-auth.svc.cluster.local",
+    "localhost",
+    "127.0.0.1",
+    "127.0.0.1.nip.io"
+  ],
+  "key": {
+    "algo": "rsa",
+    "size": 4096
+  },
+  "names": [
+    { "O": "Casbin Auth", "OU": "Server" }
+  ]
+}
