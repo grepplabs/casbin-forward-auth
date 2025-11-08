@@ -24,9 +24,14 @@ type ServerConfig struct {
 	TLS       tlsconfig.TLSServerConfig
 }
 type Config struct {
-	Server ServerConfig
-	Casbin CasbinConfig
-	Auth   AuthConfig
+	Server  ServerConfig
+	Casbin  CasbinConfig
+	Auth    AuthConfig
+	Metrics MetricsConfig
+}
+
+type MetricsConfig struct {
+	IncludeHost bool
 }
 
 type AuthConfig struct {

@@ -17,10 +17,12 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/grepplabs/casbin-traefik-forward-auth/internal/auth"
 	"github.com/grepplabs/casbin-traefik-forward-auth/internal/jwt"
+	"github.com/grepplabs/casbin-traefik-forward-auth/internal/metrics"
 	tlsserverconfig "github.com/grepplabs/cert-source/tls/server/config"
 	"github.com/grepplabs/loggo/zlog"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	slogzap "github.com/samber/slog-zap/v2"
-	ginprometheus "github.com/zsais/go-gin-prometheus"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 
@@ -47,6 +49,29 @@ func buildEngine(cfg config.Config) (*gin.Engine, Closers, error) {
 
 	gin.SetMode(gin.ReleaseMode)
 
+	registerer := prometheus.NewRegistry()
+	registerer.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	)
+
+	mainMetricsMW, err := metrics.NewMiddlewareWithConfig(metrics.MiddlewareConfig{
+		Namespace:   "main",
+		Registerer:  registerer,
+		IncludeHost: cfg.Metrics.IncludeHost,
+	})
+	if err != nil {
+		return nil, closers, fmt.Errorf("creating main metrics middleware: %w", err)
+	}
+	authMetricsMW, err := metrics.NewMiddlewareWithConfig(metrics.MiddlewareConfig{
+		Namespace:   "auth",
+		Registerer:  registerer,
+		IncludeHost: cfg.Metrics.IncludeHost,
+	})
+	if err != nil {
+		return nil, closers, fmt.Errorf("creating auth metrics middleware: %w", err)
+	}
+
 	engineLogger := zlog.LogSink.WithOptions(zap.WithCaller(false)).With(zap.String("engine", "main"))
 	engine := gin.New()
 	engine.Use(ginzap.GinzapWithConfig(engineLogger, &ginzap.Config{
@@ -54,9 +79,7 @@ func buildEngine(cfg config.Config) (*gin.Engine, Closers, error) {
 		SkipPaths:  []string{"/healthz", "/readyz", "/metrics"},
 	}))
 	engine.Use(ginzap.RecoveryWithZap(engineLogger, true))
-	ginprometheus.NewWithConfig(ginprometheus.Config{
-		DisableBodyReading: true,
-	}).Use(engine)
+	engine.Use(metrics.GinMiddleware(mainMetricsMW))
 
 	authEngineLogger := zlog.LogSink.WithOptions(zap.WithCaller(false)).With(zap.String("engine", "auth"))
 	authEngine := gin.New()
@@ -64,6 +87,7 @@ func buildEngine(cfg config.Config) (*gin.Engine, Closers, error) {
 		TimeFormat: time.RFC3339,
 	}))
 	authEngine.Use(ginzap.RecoveryWithZap(authEngineLogger, true))
+	authEngine.Use(metrics.GinMiddleware(authMetricsMW))
 	if cfg.Auth.JWTConfig.Enabled {
 		if err := cfg.Auth.JWTConfig.Validate(); err != nil {
 			return nil, closers, fmt.Errorf("invalid JWT config: %w", err)
@@ -103,6 +127,9 @@ func buildEngine(cfg config.Config) (*gin.Engine, Closers, error) {
 	engine.GET("/readyz", func(c *gin.Context) {
 		c.Status(http.StatusOK)
 	})
+	engine.GET("/metrics", metrics.NewHandlerWithConfig(metrics.HandlerConfig{
+		Gatherer: registerer,
+	}))
 
 	zlog.Infof("starting enforcer")
 	err = enforcer.Start(context.Background())

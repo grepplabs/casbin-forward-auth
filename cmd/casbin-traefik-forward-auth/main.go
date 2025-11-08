@@ -37,6 +37,9 @@ func main() {
 	root.Flags().StringVar(&cfg.Server.TLS.File.ClientCAs, "server-tls-file-client-ca", "", "Path to the server client CA file for client verification.")
 	root.Flags().StringVar(&cfg.Server.TLS.File.ClientCRL, "server-tls-file-client-crl", "", "Path to the TLS X509 CRL signed by the client CA. If unspecified, only the client CA is verified.")
 
+	// metrics
+	root.Flags().BoolVar(&cfg.Metrics.IncludeHost, "metrics-include-host", false, "Include HTTP Host header as a Prometheus label (can increase cardinality).")
+
 	// auth flags
 	root.Flags().StringVar(&cfg.Auth.RouteConfigPath, "auth-route-config-path", "", "Path to the config YAML file containing route authorization rules.")
 
