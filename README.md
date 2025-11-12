@@ -3,11 +3,11 @@
 [![Build](https://github.com/grepplabs/casbin-forward-auth/actions/workflows/build.yml/badge.svg)](https://github.com/grepplabs/casbin-forward-auth/actions/workflows/build.yml)
 [![Release](https://img.shields.io/github/v/release/grepplabs/casbin-forward-auth?sort=semver)](https://github.com/grepplabs/casbin-forward-auth/releases)
 
-A ForwardAuth service for [Traefik](https://traefik.io/) with [Casbin-based](https://casbin.org/) authorization.
+A ForwardAuth service for [Traefik](https://traefik.io/) or [NGINX](https://nginx.org/) with [Casbin-based](https://casbin.org/) authorization.
 
-This service provides a forward authentication endpoint for Traefik, allowing you to protect your services with
+This service provides a forward authentication endpoint for Traefik or NGINX allowing you to protect your services with
 fine-grained access control policies defined using Casbin.
-It acts as a gatekeeper, intercepting requests from Traefik, evaluating them against your Casbin policies, and then
+It acts as a gatekeeper, intercepting requests from the proxy, evaluating them against your Casbin policies, and then
 allowing or denying the request based on the outcome.
 
 ### Key Features
@@ -95,7 +95,9 @@ Install the Casbin Traefik Forward Auth Helm chart:
 helm install casbin-auth oci://ghcr.io/grepplabs/helm/casbin-forward-auth:<char version> -f your-values.yaml
 ```
 
-**Create a Traefik `Middleware` (ForwardAuth)**
+**Traefik**
+
+***Create a Traefik `Middleware` (ForwardAuth)***
 
 Example Traefik CRDs:
 
@@ -116,7 +118,7 @@ spec:
 
 ``` 
 
-**Attach the middleware to your route**
+***Attach the middleware to your route***
 
 You can apply the ForwardAuth middleware in several ways:
 
@@ -141,6 +143,45 @@ metadata:
     traefik.ingress.kubernetes.io/router.middlewares: traefik-casbin-auth@kubernetescrd
 spec:
   ingressClassName: traefik
+  rules:
+    - host: echo.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: echo
+                port:
+                  number: 80
+```
+
+
+**NGINX**
+
+Deploy the service with `AUTH_HEADER_SOURCE=original` to use the `X-Original-*` forward headers instead of the `X-Forwarded-*` headers during evaluation -
+for example, changing `X-Forwarded-URI` to `X-Original-URL`.
+
+Alternatively, setting `AUTH_HEADER_SOURCE=auto` allows the service to resolve the request target from either `X-Forwarded-*` or `X-Original-*` headers.
+When using `auto` mode, the trusted reverse proxy must strip these headers from all incoming client requests before adding its own.
+Failing to do so could allow an attacker to inject forged `X-Forwarded` headers and spoof the original request’s method, host, or URI - potentially bypassing authentication or authorization logic.
+
+Example Ingress:
+
+```yaml
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: echo-nginx
+  labels:
+    app: echo
+  annotations:
+    nginx.ingress.kubernetes.io/auth-url: "http://casbin-auth.casbin-auth.svc.cluster.local/v1/auth"
+    nginx.ingress.kubernetes.io/auth-response-headers: "X-Casbin-Auth-JWT,WWW-Authenticate"
+    nginx.ingress.kubernetes.io/auth-method: GET
+spec:
+  ingressClassName: nginx
   rules:
     - host: echo.local
       http:
