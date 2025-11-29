@@ -27,10 +27,18 @@ const (
 	AuthHeaderSourceOriginal  AuthHeaderSource = "original"
 )
 
+type ServerMode = string
+
+const (
+	ServerModeHTTP ServerMode = "http"
+	ServerModeSPOE ServerMode = "spoe"
+)
+
 type ServerConfig struct {
 	Addr      string
 	AdminPort int
 	TLS       tlsconfig.TLSServerConfig
+	Mode      ServerMode
 }
 type Config struct {
 	Server  ServerConfig
@@ -44,9 +52,10 @@ type MetricsConfig struct {
 }
 
 type AuthConfig struct {
-	RouteConfigPath string
-	JWTConfig       JWTConfig
-	HeaderSource    AuthHeaderSource
+	RouteConfigPath    string
+	JWTConfig          JWTConfig
+	HeaderSource       AuthHeaderSource
+	AuthRequestTimeout time.Duration
 }
 
 type CasbinConfig struct {

@@ -28,6 +28,7 @@ func main() {
 	// server flags
 	root.Flags().StringVar(&cfg.Server.Addr, "server-addr", ":8080", "Server listen address.")
 	root.Flags().IntVar(&cfg.Server.AdminPort, "server-admin-port", 0, "Admin server port (0 to disable).")
+	root.Flags().StringVar(&cfg.Server.Mode, "server-mode", config.ServerModeHTTP, "Server mode. One of: http (Traefik/Nginx), spoe (HAProxy).")
 
 	root.Flags().BoolVar(&cfg.Server.TLS.Enable, "server-tls-enable", false, "Enable server-side TLS.")
 	root.Flags().DurationVar(&cfg.Server.TLS.Refresh, "server-tls-refresh", 0, "Interval for refreshing server TLS certificates. Set to 0 to disable auto-refresh.")
@@ -43,6 +44,7 @@ func main() {
 	// auth flags
 	root.Flags().StringVar(&cfg.Auth.RouteConfigPath, "auth-route-config-path", "", "Path to the config YAML file containing route authorization rules.")
 	root.Flags().StringVar(&cfg.Auth.HeaderSource, "auth-header-source", config.AuthHeaderSourceForwarded, "Source of auth forward headers. One of: forwarded (Traefik), original (Nginx), auto. Use 'auto' with caution; proxy should strip untrusted X- headers.")
+	root.Flags().DurationVar(&cfg.Auth.AuthRequestTimeout, "auth-request-timeout", 2*time.Second, "Timeout for evaluating an authentication request.")
 
 	// casbin flags
 	root.Flags().StringVar(&cfg.Casbin.Model, "casbin-model", "rbac_model.conf", "Path or reference to the Casbin model (e.g. file:///etc/casbin/model.conf or rbac_model.conf from embedded FS).")

@@ -51,7 +51,6 @@ var (
 	ErrMissingForwardAuthHeaders = errors.New("missing forward auth headers; verify the configured auth-header-source")
 )
 
-// nolint: funlen, cyclop
 func buildEngine(registry *prometheus.Registry, cfg config.Config) (*gin.Engine, Closers, error) {
 	closers := make(Closers, 0)
 
@@ -69,15 +68,6 @@ func buildEngine(registry *prometheus.Registry, cfg config.Config) (*gin.Engine,
 	if err != nil {
 		return nil, closers, fmt.Errorf("creating main metrics middleware: %w", err)
 	}
-	authMetricsMW, err := metrics.NewMiddlewareWithConfig(metrics.MiddlewareConfig{
-		Namespace:   "auth",
-		Registerer:  registry,
-		IncludeHost: cfg.Metrics.IncludeHost,
-	})
-	if err != nil {
-		return nil, closers, fmt.Errorf("creating auth metrics middleware: %w", err)
-	}
-
 	engineLogger := zlog.LogSink.WithOptions(zap.WithCaller(false)).With(zap.String("engine", "main"))
 	engine := gin.New()
 	engine.Use(ginzap.GinzapWithConfig(engineLogger, &ginzap.Config{
@@ -87,6 +77,42 @@ func buildEngine(registry *prometheus.Registry, cfg config.Config) (*gin.Engine,
 	engine.Use(ginzap.RecoveryWithZap(engineLogger, true))
 	engine.Use(metrics.GinMiddleware(mainMetricsMW))
 
+	authEngine, err := buildAuthEngine(registry, cfg, closers)
+	if err != nil {
+		return nil, closers, fmt.Errorf("error creating auth engint: %w", err)
+	}
+
+	engine.GET("/v1/auth", authHandler(authEngine, config.AuthHeaderSourceAuto))
+	if cfg.Server.AdminPort == 0 {
+		addAdminEndpoints(registry, engine)
+	}
+	return engine, closers, nil
+}
+
+func buildSPOE(registry *prometheus.Registry, cfg config.Config) (*SPOEAgent, Closers, error) {
+	closers := make(Closers, 0)
+	gin.SetMode(gin.ReleaseMode)
+	if err := cfg.Auth.Validate(); err != nil {
+		return nil, closers, fmt.Errorf("invalid auth config: %w", err)
+	}
+	authEngine, err := buildAuthEngine(registry, cfg, closers)
+	if err != nil {
+		return nil, closers, fmt.Errorf("error creating auth engint: %w", err)
+	}
+	agent := NewSPOEAgent(authEngine, cfg.Auth.AuthRequestTimeout)
+	return agent, closers, nil
+}
+
+func buildAuthEngine(registry *prometheus.Registry, cfg config.Config, closers Closers) (*gin.Engine, error) {
+	authMetricsMW, err := metrics.NewMiddlewareWithConfig(metrics.MiddlewareConfig{
+		Namespace:   "auth",
+		Registerer:  registry,
+		IncludeHost: cfg.Metrics.IncludeHost,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("creating auth metrics middleware: %w", err)
+	}
+
 	authEngineLogger := zlog.LogSink.WithOptions(zap.WithCaller(false)).With(zap.String("engine", "auth"))
 	authEngine := gin.New()
 	authEngine.Use(ginzap.GinzapWithConfig(authEngineLogger, &ginzap.Config{
@@ -94,10 +120,11 @@ func buildEngine(registry *prometheus.Registry, cfg config.Config) (*gin.Engine,
 	}))
 	authEngine.Use(ginzap.RecoveryWithZap(authEngineLogger, true))
 	authEngine.Use(metrics.GinMiddleware(authMetricsMW))
+
 	if cfg.Auth.JWTConfig.Enabled {
 		verifier, err := jwt.NewJWTVerifier(context.Background(), cfg.Auth.JWTConfig)
 		if err != nil {
-			return nil, closers, fmt.Errorf("invalid JWT verifier: %w", err)
+			return nil, fmt.Errorf("invalid JWT verifier: %w", err)
 		}
 		closers.Add(verifier)
 		authEngine.Use(verifier.Middleware())
@@ -105,17 +132,15 @@ func buildEngine(registry *prometheus.Registry, cfg config.Config) (*gin.Engine,
 
 	enforcer, err := newLifecycleEnforcer(&cfg.Casbin)
 	if err != nil {
-		return nil, closers, fmt.Errorf("could not create enforcer: %w", err)
+		return nil, fmt.Errorf("could not create enforcer: %w", err)
 	}
 	closers.Add(enforcer)
 
-	var (
-		routeConfig *auth.RouteConfig
-	)
+	var routeConfig *auth.RouteConfig
 	if cfg.Auth.RouteConfigPath != "" {
 		routeConfig, err = loadRouteConfig(cfg.Auth.RouteConfigPath)
 		if err != nil {
-			return nil, closers, fmt.Errorf("error loading route config: %w", err)
+			return nil, fmt.Errorf("error loading route config: %w", err)
 		}
 	} else {
 		zlog.Warnf("auth-route-config-path is not provided")
@@ -123,17 +148,12 @@ func buildEngine(registry *prometheus.Registry, cfg config.Config) (*gin.Engine,
 	}
 	auth.SetupRoutes(authEngine, routeConfig.Routes, enforcer.SyncedEnforcer)
 
-	engine.GET("/v1/auth", authHandler(authEngine, config.AuthHeaderSourceAuto))
-
-	if cfg.Server.AdminPort == 0 {
-		addAdminEndpoints(registry, engine)
-	}
 	zlog.Infof("starting enforcer")
 	err = enforcer.Start(context.Background())
 	if err != nil {
-		return nil, closers, fmt.Errorf("error starting enforcer: %w", err)
+		return nil, fmt.Errorf("error starting enforcer: %w", err)
 	}
-	return engine, closers, nil
+	return authEngine, nil
 }
 
 func newRegistry() *prometheus.Registry {
@@ -211,6 +231,17 @@ func authHandler(authEngine *gin.Engine, authHeaderSource config.AuthHeaderSourc
 }
 
 func Start(cfg config.Config) error {
+	switch cfg.Server.Mode {
+	case config.ServerModeHTTP:
+		return StartHTTP(cfg)
+	case config.ServerModeSPOE:
+		return StartSPOE(cfg)
+	default:
+		return fmt.Errorf("unsupported server mode: %s", cfg.Server.Mode)
+	}
+}
+
+func StartHTTP(cfg config.Config) error {
 	registry := newRegistry()
 	engine, closers, err := buildEngine(registry, cfg)
 	defer func() { _ = closers.Close() }()
@@ -218,43 +249,85 @@ func Start(cfg config.Config) error {
 		return fmt.Errorf("error building engine: %w", err)
 	}
 	var group run.Group
-	group.Add(func() error {
-		if cfg.Server.TLS.Enable {
-			sl := slog.New(slogzap.Option{Logger: zlog.LogSink}.NewZapHandler())
-			tlsConfig, err := tlsserverconfig.GetServerTLSConfig(sl, &cfg.Server.TLS)
-			if err != nil {
-				return fmt.Errorf("error creating TLS server config: %w", err)
-			}
-			//nolint:noctx
-			ln, err := net.Listen("tcp", cfg.Server.Addr)
-			if err != nil {
-				return fmt.Errorf("error listening on %s: %w", cfg.Server.Addr, err)
-			}
-			tlsLn := tls.NewListener(ln, tlsConfig)
-
-			zlog.Infof("starting TLS server on %s (version: %s)", cfg.Server.Addr, getVersion())
-			return engine.RunListener(tlsLn)
-		} else {
-			zlog.Infof("starting server on %s (version: %s)", cfg.Server.Addr, getVersion())
-			return engine.Run(cfg.Server.Addr)
-		}
-	}, func(err error) {
-	})
-
-	if cfg.Server.AdminPort > 0 {
-		adminAddr, err := getAdminAddr(cfg)
-		if err != nil {
-			return fmt.Errorf("error getting admin address: %w", err)
-		}
-		adminEngine := buildAdminEngine(registry)
-
-		group.Add(func() error {
-			zlog.Infof("starting admin server %s", adminAddr)
-			return adminEngine.Run(adminAddr)
-		}, func(err error) {
-		})
+	addListenerServer(&group, cfg, engine.RunListener)
+	if err = addAdminServer(&group, cfg, registry); err != nil {
+		return err
 	}
 	return group.Run()
+}
+
+func StartSPOE(cfg config.Config) error {
+	registry := newRegistry()
+	agent, closers, err := buildSPOE(registry, cfg)
+	defer func() { _ = closers.Close() }()
+	if err != nil {
+		return fmt.Errorf("error building agent: %w", err)
+	}
+	var group run.Group
+	addListenerServer(&group, cfg, agent.RunListener)
+	if err = addAdminServer(&group, cfg, registry); err != nil {
+		return err
+	}
+	return group.Run()
+}
+
+func addListenerServer(group *run.Group, cfg config.Config, runWithListener func(net.Listener) error) {
+	var ln net.Listener
+	group.Add(func() error {
+		listener, err := buildListener(cfg.Server)
+		if err != nil {
+			return fmt.Errorf("error building listener: %w", err)
+		}
+		ln = listener
+
+		msg := fmt.Sprintf("starting server (%s)", cfg.Server.Mode)
+		if cfg.Server.TLS.Enable {
+			msg = fmt.Sprintf("starting TLS server (%s)", cfg.Server.Mode)
+		}
+		zlog.Infof("%s on %s (version: %s)", msg, cfg.Server.Addr, getVersion())
+
+		return runWithListener(ln)
+	}, func(error) {
+		if ln != nil {
+			_ = ln.Close()
+		}
+	})
+}
+
+func addAdminServer(group *run.Group, cfg config.Config, registry *prometheus.Registry) error {
+	if cfg.Server.AdminPort <= 0 {
+		return nil
+	}
+	adminAddr, err := getAdminAddr(cfg)
+	if err != nil {
+		return fmt.Errorf("error getting admin address: %w", err)
+	}
+	adminEngine := buildAdminEngine(registry)
+
+	group.Add(func() error {
+		zlog.Infof("starting admin server %s", adminAddr)
+		return adminEngine.Run(adminAddr)
+	}, func(err error) {
+	})
+	return nil
+}
+
+func buildListener(cfg config.ServerConfig) (net.Listener, error) {
+	//nolint:noctx
+	ln, err := net.Listen("tcp", cfg.Addr)
+	if err != nil {
+		return nil, fmt.Errorf("error listening on %s: %w", cfg.Addr, err)
+	}
+	if !cfg.TLS.Enable {
+		return ln, nil
+	}
+	logger := slog.New(slogzap.Option{Logger: zlog.LogSink}.NewZapHandler())
+	tlsConfig, err := tlsserverconfig.GetServerTLSConfig(logger, &cfg.TLS)
+	if err != nil {
+		_ = ln.Close()
+		return nil, fmt.Errorf("error creating TLS server config: %w", err)
+	}
+	return tls.NewListener(ln, tlsConfig), nil
 }
 
 func getVersion() string {
@@ -300,11 +373,8 @@ func forwardAuth(c *gin.Context, authEngine *gin.Engine, authHeaderSource config
 	req.RemoteAddr = c.Request.RemoteAddr
 
 	// copy all headers
-	for key, values := range c.Request.Header {
-		for _, value := range values {
-			req.Header.Add(key, value)
-		}
-	}
+	req.Header = c.Request.Header.Clone()
+
 	// delete traefik headers
 	req.Header.Del(HeaderForwardedMethod)
 	req.Header.Del(HeaderForwardedProto)

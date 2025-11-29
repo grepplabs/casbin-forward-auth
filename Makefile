@@ -113,6 +113,9 @@ release: ## update helm chart version and appVersion and push tag
 run-server: ## run server
 	go run cmd/casbin-forward-auth/main.go --auth-route-config-path=examples/pubsub-routes-expr.yaml
 
+run-spoe: ## run spoe agent
+	go run cmd/casbin-forward-auth/main.go --auth-route-config-path=examples/pubsub-routes-expr.yaml --server-mode=spoe --server-addr=":3000" --server-admin-port=8081
+
 run-tls-server: ## run TLS server
 	go run cmd/casbin-forward-auth/main.go --auth-route-config-path=examples/pubsub-routes-expr.yaml \
 		--server-addr=":8448" \
