@@ -18,3 +18,7 @@ nodes:
       - containerPort: 30180
         hostPort: 30180
         listenAddress: "127.0.0.1"
+      # haproxy controller
+      - containerPort: 30280
+        hostPort: 30280
+        listenAddress: "127.0.0.1"

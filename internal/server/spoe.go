@@ -24,10 +24,11 @@ var (
 )
 
 const (
-	SPOEMessageName  = "forward-auth"
-	SPOEHeaderPrefix = "header."
-	SPOEVarAllow     = "allow"
-	SPOEVarStatus    = "status"
+	SPOEMessageName      = "forward-auth"
+	SPOEHeaderPrefix     = "header."
+	SPOERespHeaderPrefix = "resp_header."
+	SPOEVarAllow         = "allow"
+	SPOEVarStatus        = "status"
 
 	SPOEKVMethod = "method"
 	SPOEKVHost   = "host"
@@ -143,8 +144,12 @@ func setSPOEResponse(req *request.Request, code int, headers map[string]string) 
 		if header == "" {
 			continue
 		}
-		req.Actions.SetVar(action.ScopeTransaction, SPOEHeaderPrefix+header, value)
+		req.Actions.SetVar(action.ScopeTransaction, spoeRespHeaderVar(header), value)
 	}
+}
+
+func spoeRespHeaderVar(header string) string {
+	return SPOERespHeaderPrefix + strings.ReplaceAll(strings.ToLower(header), "-", "_")
 }
 
 func getSPOEHeaders(msg *message.Message) http.Header {

@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - haproxy-auxiliary-configmap.yaml
+  - haproxy-spoe-config.yaml
+helmCharts:
+  - name: kubernetes-ingress
+    releaseName: haproxy-controller
+    repo: https://haproxytech.github.io/helm-charts
+    version: 1.46.1
+    namespace: haproxy-controller
+    valuesFile: values.yaml

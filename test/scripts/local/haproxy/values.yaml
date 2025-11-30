@@ -1,0 +1,43 @@
+fullnameOverride: haproxy-controller
+
+controller:
+  service:
+    type: NodePort
+    nodePorts:
+      http: 30280
+    enablePorts:
+      http: true
+      https: false
+      quic: false
+      stat: false
+      admin: false
+
+  extraVolumes:
+    - name: haproxy-auxiliary-volume
+      configMap:
+        name: haproxy-auxiliary-configmap
+    - name: haproxy-spoe-config-volume
+      configMap:
+        name: haproxy-spoe-config
+
+  extraVolumeMounts:
+    - name: haproxy-auxiliary-volume
+      mountPath: /usr/local/etc/haproxy/haproxy-aux.cfg
+      subPath: haproxy-auxiliary.cfg
+      readOnly: true
+    - name: haproxy-spoe-config-volume
+      mountPath: /usr/local/etc/haproxy/spoe-forward-auth.conf
+      subPath: spoe-forward-auth.conf
+      readOnly: true
+
+#  config:
+#    frontend-config-snippet: |
+#      filter spoe engine forward-auth-on-frontend-event config /usr/local/etc/haproxy/spoe-forward-auth.conf
+#      http-request deny unless { var(txn.forward_auth.allow) -m int eq 1 }
+#
+#      # 401 Unauthorized WITH WWW-Authenticate header
+#      http-request return status 401 hdr Cache-Control "no-store" hdr Pragma "no-cache" hdr WWW-Authenticate %[var(txn.forward_auth.resp_header.www_authenticate)] content-type "text/html" lf-string "<html><body><h1>401 Unauthorized</h1><p>Authentication required.</p></body></html>\n" if { var(txn.forward_auth.status) -m int eq 401 } { var(txn.forward_auth.resp_header.www_authenticate) -m found }
+#      # 401 Unauthorized WITHOUT WWW-Authenticate (fallback)
+#      http-request return status 401 hdr Cache-Control "no-store" hdr Pragma "no-cache" content-type "text/html" lf-string "<html><body><h1>401 Unauthorized</h1><p>Authentication required.</p></body></html>\n" if { var(txn.forward_auth.status) -m int eq 401 }
+#      # 403 Forbidden (default deny or other forbidden cases)
+#      http-request return status 403 hdr Cache-Control "no-store" hdr Pragma "no-cache" content-type "text/html" lf-string "<html><body><h1>403 Forbidden</h1><p>Access denied.</p></body></html>\n" unless { var(txn.forward_auth.allow) -m int eq 1 }

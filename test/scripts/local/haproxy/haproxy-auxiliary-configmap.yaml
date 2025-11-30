@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: haproxy-auxiliary-configmap
+  namespace: haproxy-controller
+data:
+  haproxy-auxiliary.cfg: |
+    # Extra HAProxy sections injected into HAProxy Ingress Controller
+
+    backend spoe-forward-auth-backend
+        mode tcp
+        balance roundrobin
+        timeout connect 5s
+        timeout server 3m  # must be >= spoe-agent "timeout idle"
+
+        # SPOE agent service casbin-auth-rbac-spoe.casbin-auth.svc.cluster.local:3000
+        server casbin-auth-rbac-spoe casbin-auth-rbac-spoe.casbin-auth.svc.cluster.local:3000 check maxconn 32

@@ -462,7 +462,7 @@ func Test_SPOEAgent_handleRequest_Unauthorized(t *testing.T) {
 		if actions[i].Name == SPOEVarStatus {
 			statusAction = &actions[i]
 		}
-		if actions[i].Name == SPOEHeaderPrefix+HeaderWWWAuthenticate {
+		if actions[i].Name == spoeRespHeaderVar(HeaderWWWAuthenticate) {
 			wwwAuthAction = &actions[i]
 		}
 	}

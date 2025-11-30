@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	configPath = "../../kubeconfig-casbin-traefik"
+	configPath = "../../kubeconfig-casbin-auth"
 )
 
 func newKubectlOptions() *k8s.KubectlOptions {

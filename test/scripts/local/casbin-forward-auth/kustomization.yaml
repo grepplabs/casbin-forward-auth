@@ -17,3 +17,7 @@ helmCharts:
     releaseName: casbin-auth-keymatch
     namespace: casbin-auth
     valuesFile: values-keymatch.yaml
+  - name: casbin-forward-auth
+    releaseName: casbin-auth-rbac-spoe
+    namespace: casbin-auth
+    valuesFile: values-rbac-spoe.yaml
