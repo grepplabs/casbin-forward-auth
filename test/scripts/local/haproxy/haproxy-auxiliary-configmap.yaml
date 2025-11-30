@@ -7,7 +7,7 @@ data:
   haproxy-auxiliary.cfg: |
     # Extra HAProxy sections injected into HAProxy Ingress Controller
 
-    backend spoe-forward-auth-backend
+    backend spoe-forward-auth-rbac-backend
         mode tcp
         balance roundrobin
         timeout connect 5s
@@ -15,3 +15,13 @@ data:
 
         # SPOE agent service casbin-auth-rbac-spoe.casbin-auth.svc.cluster.local:3000
         server casbin-auth-rbac-spoe casbin-auth-rbac-spoe.casbin-auth.svc.cluster.local:3000 check maxconn 32
+
+    backend spoe-forward-auth-keymatch-backend
+        mode tcp
+        balance roundrobin
+        timeout connect 5s
+        timeout server 3m  # must be >= spoe-agent "timeout idle"
+
+        # SPOE agent service casbin-auth-keymatch-spoe.casbin-auth.svc.cluster.local:3000
+        server casbin-auth-keymatch-spoe casbin-auth-keymatch-spoe.casbin-auth.svc.cluster.local:3000 check maxconn 32
+

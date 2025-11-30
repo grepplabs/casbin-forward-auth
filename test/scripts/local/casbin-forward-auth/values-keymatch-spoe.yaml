@@ -1,0 +1,42 @@
+fullnameOverride: casbin-auth-keymatch-spoe
+
+image:
+  repository: local/casbin-forward-auth
+  tag: latest
+
+serviceMonitor:
+  enabled: true
+
+service:
+  port: 3000
+
+application:
+  server:
+    port: 3000
+  env:
+    LOG_FORMAT: "text"
+    SERVER_MODE: "spoe"
+    CASBIN_MODEL: keymatch_model.conf
+    CASBIN_ADAPTER_KUBE_CONFIG_LABELS: "casbin.grepplabs.com/model=keymatch"
+  adapter:
+    kube:
+      namespace:
+  authRouteConfig:
+    routes:
+      - httpMethod: ANY
+        relativePaths:
+          - /*any
+        params:
+          - name: user
+            source: basicAuthUser
+          - name: resource
+            source: urlPath
+          - name: method
+            source: httpMethod
+        rules:
+          - format: "%s"
+            paramNames: [ user ]
+          - format: "%s"
+            paramNames: [ resource ]
+          - format: "%s"
+            paramNames: [ method ]

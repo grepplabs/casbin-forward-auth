@@ -44,6 +44,10 @@ func requireRejected(t *testing.T, method string, url string, headers map[string
 			if strings.Contains(strings.ToLower(body), "nginx") {
 				return true
 			}
+			// haproxy
+			if strings.Contains(body, "403 Forbidden") {
+				return true
+			}
 			return false
 		}, 10, 2*time.Second,
 	)
@@ -59,6 +63,10 @@ func requireNotFound(t *testing.T, method string, url string, headers map[string
 				return true
 			}
 			if strings.Contains(strings.ToLower(body), "nginx") {
+				return true
+			}
+			// haproxy
+			if strings.Contains(body, "403 Forbidden") {
 				return true
 			}
 			return false

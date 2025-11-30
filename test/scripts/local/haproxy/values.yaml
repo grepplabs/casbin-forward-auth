@@ -26,13 +26,17 @@ controller:
       subPath: haproxy-auxiliary.cfg
       readOnly: true
     - name: haproxy-spoe-config-volume
-      mountPath: /usr/local/etc/haproxy/spoe-forward-auth.conf
-      subPath: spoe-forward-auth.conf
+      mountPath: /usr/local/etc/haproxy/spoe-forward-rbac-auth.conf
+      subPath: spoe-forward-rbac-auth.conf
+      readOnly: true
+    - name: haproxy-spoe-config-volume
+      mountPath: /usr/local/etc/haproxy/spoe-forward-keymatch-auth.conf
+      subPath: spoe-forward-keymatch-auth.conf
       readOnly: true
 
 #  config:
 #    frontend-config-snippet: |
-#      filter spoe engine forward-auth-on-frontend-event config /usr/local/etc/haproxy/spoe-forward-auth.conf
+#      filter spoe engine forward-auth-on-frontend-event config /usr/local/etc/haproxy/spoe-forward-rbac-auth.conf
 #      http-request deny unless { var(txn.forward_auth.allow) -m int eq 1 }
 #
 #      # 401 Unauthorized WITH WWW-Authenticate header

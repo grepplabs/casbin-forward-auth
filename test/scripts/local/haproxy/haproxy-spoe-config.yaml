@@ -4,7 +4,7 @@ metadata:
   name: haproxy-spoe-config
   namespace: haproxy-controller
 data:
-  spoe-forward-auth.conf: |
+  spoe-forward-rbac-auth.conf: |
     [forward-auth-on-frontend-event]
     
     spoe-agent fa-agent
@@ -15,7 +15,7 @@ data:
         timeout idle       2m
         timeout processing 500ms
     
-        use-backend spoe-forward-auth-backend
+        use-backend spoe-forward-auth-rbac-backend
     
     spoe-message forward-auth
         args method=method scheme=ssl_fc host=hdr(Host) uri=path src=src header.Authorization=hdr(Authorization) header.host=hdr(Host)
@@ -31,7 +31,40 @@ data:
         timeout idle       2m
         timeout processing 500ms
     
-        use-backend spoe-forward-auth-backend
+        use-backend spoe-forward-auth-rbac-backend
+    
+    spoe-message forward-auth
+        args method=method scheme=ssl_fc host=hdr(Host) uri=path src=src header.Authorization=hdr(Authorization) header.host=hdr(Host)
+        event on-backend-http-request
+
+  spoe-forward-keymatch-auth.conf: |
+    [forward-auth-on-frontend-event]
+    
+    spoe-agent fa-agent
+        messages forward-auth
+        option var-prefix forward_auth
+    
+        timeout hello      2s
+        timeout idle       2m
+        timeout processing 500ms
+    
+        use-backend spoe-forward-auth-keymatch-backend
+    
+    spoe-message forward-auth
+        args method=method scheme=ssl_fc host=hdr(Host) uri=path src=src header.Authorization=hdr(Authorization) header.host=hdr(Host)
+        event on-frontend-http-request
+
+    [forward-auth-on-backend-event]
+    
+    spoe-agent fa-agent
+        messages forward-auth
+        option var-prefix forward_auth
+    
+        timeout hello      2s
+        timeout idle       2m
+        timeout processing 500ms
+    
+        use-backend spoe-forward-auth-keymatch-backend
     
     spoe-message forward-auth
         args method=method scheme=ssl_fc host=hdr(Host) uri=path src=src header.Authorization=hdr(Authorization) header.host=hdr(Host)

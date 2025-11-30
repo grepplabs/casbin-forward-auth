@@ -134,8 +134,9 @@ metadata:
   labels:
     app: echo
   annotations:
+    haproxy.org/standalone-backend: "true"
     haproxy.org/backend-config-snippet: |
-      filter spoe engine forward-auth-on-backend-event config /usr/local/etc/haproxy/spoe-forward-auth.conf
+      filter spoe engine forward-auth-on-backend-event config /usr/local/etc/haproxy/spoe-forward-rbac-auth.conf
       http-request deny unless { var(txn.forward_auth.allow) -m int eq 1 }
 spec:
   ingressClassName: haproxy
