@@ -125,3 +125,49 @@ spec:
                 name: echo
                 port:
                   number: 80
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: echo-haproxy
+  labels:
+    app: echo
+  annotations:
+    haproxy.org/standalone-backend: "true"
+    haproxy.org/backend-config-snippet: |
+      filter spoe engine forward-auth-on-backend-event config /usr/local/etc/haproxy/spoe-forward-rbac-auth.conf
+      http-request deny unless { var(txn.forward_auth.allow) -m int eq 1 }
+spec:
+  ingressClassName: haproxy
+  rules:
+    - host: echo.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: echo
+                port:
+                  number: 80
+    - host: echo.127.0.0.1.nip.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: echo
+                port:
+                  number: 80
+    - host: orders.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: echo
+                port:
+                  number: 80

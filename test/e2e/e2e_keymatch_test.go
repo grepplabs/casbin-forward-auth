@@ -24,6 +24,7 @@ func Test_KeyMatch(t *testing.T) {
 	targets := []target{
 		{name: "traefik", baseURL: "http://keymatch.127.0.0.1.nip.io:30080"},
 		{name: "nginx", baseURL: "http://keymatch.127.0.0.1.nip.io:30180"},
+		{name: "haproxy", baseURL: "http://keymatch.127.0.0.1.nip.io:30280"},
 	}
 
 	type tc struct {

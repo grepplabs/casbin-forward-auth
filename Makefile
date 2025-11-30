@@ -13,7 +13,7 @@ GOLANGCI_LINT_VERSION := v2.4.0
 DOCKER_BUILD_ARGS ?=
 LOCAL_IMAGE := local/casbin-forward-auth:latest
 LOCAL_CLUSTER_ROOT_DIR ?= $(ROOT_DIR)/test/scripts/local/local-cluster
-LOCAL_CLUSTER_NAME ?= casbin-traefik
+LOCAL_CLUSTER_NAME ?= casbin-auth
 LOCAL_KIND_CONFIG ?= $(ROOT_DIR)/kind-config-$(LOCAL_CLUSTER_NAME).yaml
 LOCAL_KUBECONFIG ?= $(ROOT_DIR)/kubeconfig-$(LOCAL_CLUSTER_NAME)
 
@@ -113,6 +113,9 @@ release: ## update helm chart version and appVersion and push tag
 run-server: ## run server
 	go run cmd/casbin-forward-auth/main.go --auth-route-config-path=examples/pubsub-routes-expr.yaml
 
+run-spoe: ## run spoe agent
+	go run cmd/casbin-forward-auth/main.go --auth-route-config-path=examples/pubsub-routes-expr.yaml --server-mode=spoe --server-addr=":3000" --server-admin-port=8081
+
 run-tls-server: ## run TLS server
 	go run cmd/casbin-forward-auth/main.go --auth-route-config-path=examples/pubsub-routes-expr.yaml \
 		--server-addr=":8448" \
@@ -204,13 +207,15 @@ e2e-revoke: export KUBECONFIG=$(LOCAL_KUBECONFIG)
 e2e-revoke: ## revoke access
 	kubectl delete -f $(E2E_TESTDATA_DIR)/rbac-echo-pubsub-policy.yaml
 
+E2E_PORT := 30080
+
 e2e-publish: ## publish data
-	curl -v -H "Authorization: Bearer $(TOKEN)" -H 'Host: orders.local' -X POST http://localhost:30080/v1alpha/publish
+	curl -v -H "Authorization: Bearer $(TOKEN)" -H 'Host: orders.local' -X POST http://localhost:$(E2E_PORT)/v1alpha/publish
 
 e2e-read: ## read data
-	curl -v -H "Authorization: Bearer $(TOKEN)" -H 'Host: orders.local' -X POST http://localhost:30080/v1alpha/subscriptions/order-updates/pull
-	curl -v -H "Authorization: Bearer $(TOKEN)" -H 'Host: orders.local' -X POST http://localhost:30080/v1alpha/subscriptions/order-updates/ack
-	curl -v -H "Authorization: Bearer $(TOKEN)" -H 'Host: orders.local' -X POST http://localhost:30080/v1alpha/subscriptions/order-updates/nack
+	curl -v -H "Authorization: Bearer $(TOKEN)" -H 'Host: orders.local' -X POST http://localhost:$(E2E_PORT)/v1alpha/subscriptions/order-updates/pull
+	curl -v -H "Authorization: Bearer $(TOKEN)" -H 'Host: orders.local' -X POST http://localhost:$(E2E_PORT)/v1alpha/subscriptions/order-updates/ack
+	curl -v -H "Authorization: Bearer $(TOKEN)" -H 'Host: orders.local' -X POST http://localhost:$(E2E_PORT)/v1alpha/subscriptions/order-updates/nack
 
 e2e-all: e2e-grant e2e-publish e2e-read e2e-revoke
 

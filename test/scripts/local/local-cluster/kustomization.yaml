@@ -5,6 +5,7 @@ resources:
   - ../traefik-crds
   - ../traefik
   - ../nginx
+  - ../haproxy
   - ../casbin-kube
   - ../casbin-forward-auth
   - ../dev-tools
