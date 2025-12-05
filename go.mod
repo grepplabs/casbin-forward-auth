@@ -12,7 +12,7 @@ require (
 	github.com/grepplabs/casbin-kube v0.0.7
 	github.com/grepplabs/cert-source v0.0.9
 	github.com/grepplabs/loggo v0.0.3
-	github.com/lestrrat-go/httprc/v3 v3.0.1
+	github.com/lestrrat-go/httprc/v3 v3.0.2
 	github.com/lestrrat-go/jwx/v3 v3.0.12
 	github.com/negasus/haproxy-spoe-go v1.0.7
 	github.com/oklog/run v1.2.0
@@ -80,7 +80,6 @@ require (
 	github.com/lestrrat-go/dsig v1.0.0 // indirect
 	github.com/lestrrat-go/dsig-secp256k1 v1.0.0 // indirect
 	github.com/lestrrat-go/httpcc v1.0.1 // indirect
-	github.com/lestrrat-go/option v1.0.1 // indirect
 	github.com/lestrrat-go/option/v2 v2.0.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
