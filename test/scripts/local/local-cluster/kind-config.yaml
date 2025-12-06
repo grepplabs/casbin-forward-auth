@@ -22,3 +22,7 @@ nodes:
       - containerPort: 30280
         hostPort: 30280
         listenAddress: "127.0.0.1"
+      # envoy-gateway
+      - containerPort: 30380
+        hostPort: 30380
+        listenAddress: "127.0.0.1"

@@ -6,6 +6,8 @@ resources:
   - ../traefik
   - ../nginx
   - ../haproxy
+  - ../envoy-gateway-crds
+  - ../envoy-gateway
   - ../casbin-kube
   - ../casbin-forward-auth
   - ../dev-tools

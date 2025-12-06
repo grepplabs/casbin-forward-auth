@@ -34,6 +34,7 @@ import (
 )
 
 const (
+	AuthV1Path            = "/v1/auth"
 	HeaderForwardedMethod = "X-Forwarded-Method"
 	HeaderForwardedProto  = "X-Forwarded-Proto"
 	HeaderForwardedHost   = "X-Forwarded-Host"
@@ -49,6 +50,7 @@ const (
 var (
 	ErrUnauthorized              = errors.New("unauthorized")
 	ErrMissingForwardAuthHeaders = errors.New("missing forward auth headers; verify the configured auth-header-source")
+	ErrInvalidRequestHeaders     = errors.New("missing required request headers")
 )
 
 func buildEngine(registry *prometheus.Registry, cfg config.Config) (*gin.Engine, Closers, error) {
@@ -82,7 +84,8 @@ func buildEngine(registry *prometheus.Registry, cfg config.Config) (*gin.Engine,
 		return nil, closers, fmt.Errorf("error creating auth engint: %w", err)
 	}
 
-	engine.GET("/v1/auth", authHandler(authEngine, config.AuthHeaderSourceAuto))
+	engine.Any(AuthV1Path, authHandler(authEngine, cfg.Auth.HeaderSource))
+	engine.Any(AuthV1Path+"/*uri", authHandler(authEngine, cfg.Auth.HeaderSource))
 	if cfg.Server.AdminPort == 0 {
 		addAdminEndpoints(registry, engine)
 	}
@@ -420,12 +423,17 @@ func getForwardedTarget(c *gin.Context, authHeaderSource config.AuthHeaderSource
 		return getFromForwarded(c)
 	case config.AuthHeaderSourceOriginal:
 		return getFromOriginal(c)
+	case config.AuthHeaderSourceRequest:
+		return getFromRequest(c)
 	case config.AuthHeaderSourceAuto:
 		// try forwarded first, then original — current behavior
 		if m, h, u, err := getFromForwarded(c); err == nil {
 			return m, h, u, nil
 		}
-		return getFromOriginal(c)
+		if m, h, u, err := getFromOriginal(c); err == nil {
+			return m, h, u, nil
+		}
+		return getFromRequest(c)
 	default:
 		return "", "", "", fmt.Errorf("unsupported header source %q", authHeaderSource)
 	}
@@ -457,6 +465,19 @@ func getFromOriginal(c *gin.Context) (string, string, string, error) {
 	}
 	if method == "" || host == "" || uri == "" {
 		return "", "", "", ErrMissingForwardAuthHeaders
+	}
+	return method, host, uri, nil
+}
+
+func getFromRequest(c *gin.Context) (string, string, string, error) {
+	method := c.Request.Method
+	uri := strings.TrimPrefix(c.Request.RequestURI, AuthV1Path)
+	if uri == "" {
+		uri = "/" // treat bare /v1/auth as root
+	}
+	host := c.Request.Host
+	if host == "" {
+		return "", "", "", ErrInvalidRequestHeaders
 	}
 	return method, host, uri, nil
 }

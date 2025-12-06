@@ -31,7 +31,12 @@ func Test_forwardAuth_MissingHeaders(t *testing.T) {
 	// attach a request (no forwarded header set)
 	c.Request = httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
 
-	_, headers, err := forwardAuth(c, authEngine, config.AuthHeaderSourceAuto)
+	_, headers, err := forwardAuth(c, authEngine, config.AuthHeaderSourceForwarded)
+	require.Error(t, err)
+	require.ErrorIs(t, err, ErrMissingForwardAuthHeaders)
+	require.Empty(t, headers)
+
+	_, headers, err = forwardAuth(c, authEngine, config.AuthHeaderSourceOriginal)
 	require.Error(t, err)
 	require.ErrorIs(t, err, ErrMissingForwardAuthHeaders)
 	require.Empty(t, headers)
@@ -336,9 +341,40 @@ func Test_getForwardedTarget(t *testing.T) {
 		// no forwarded headers
 		c.Request = httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
 
-		_, _, _, err := getForwardedTarget(c, config.AuthHeaderSourceAuto)
+		_, _, _, err := getForwardedTarget(c, config.AuthHeaderSourceForwarded)
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrMissingForwardAuthHeaders)
+
+		_, _, _, err = getForwardedTarget(c, config.AuthHeaderSourceOriginal)
+		require.Error(t, err)
+		require.ErrorIs(t, err, ErrMissingForwardAuthHeaders)
+	})
+
+	t.Run("forward-auth: missing headers auto -> request", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		// no forwarded headers
+		c.Request = httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
+		m, h, u, err := getForwardedTarget(c, config.AuthHeaderSourceAuto)
+		require.NoError(t, err)
+		assert.Equal(t, http.MethodGet, m)
+		assert.Equal(t, "example.com", h) // default from httptest
+		assert.Equal(t, "/", u)
+	})
+
+	t.Run("forward-auth: missing headers auto -> post request", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		// no forwarded headers
+		c.Request = httptest.NewRequest(http.MethodPost, "/v1/auth/hello", nil)
+		c.Request.Host = "request.host.local"
+		m, h, u, err := getForwardedTarget(c, config.AuthHeaderSourceAuto)
+		require.NoError(t, err)
+		assert.Equal(t, http.MethodPost, m)
+		assert.Equal(t, "request.host.local", h)
+		assert.Equal(t, "/hello", u)
 	})
 
 	t.Run("nginx auth_request: happy path", func(t *testing.T) {
@@ -356,6 +392,46 @@ func Test_getForwardedTarget(t *testing.T) {
 		assert.Equal(t, http.MethodGet, method)
 		assert.Equal(t, "echo.127.0.0.1.nip.io:30180", host)
 		assert.Equal(t, "/get?x=1", uri)
+	})
+
+	t.Run("auto: prefers forwarded over original and request", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		req := httptest.NewRequest(http.MethodGet, "/v1/auth/abc", nil)
+		req.Host = "request.host.local"
+
+		// forwarded headers
+		req.Header.Set(HeaderForwardedMethod, http.MethodPost)
+		req.Header.Set(HeaderForwardedHost, "fwd.host.local")
+		req.Header.Set(HeaderForwardedURI, "/from/forwarded")
+
+		// original headers (should be ignored because forwarded wins)
+		req.Header.Set("X-Original-Method", http.MethodPut)
+		req.Header.Set("X-Original-URI", "/from/original")
+		req.Header.Set("X-Original-URL", "http://orig.host/from/original")
+		c.Request = req
+
+		m, h, u, err := getForwardedTarget(c, config.AuthHeaderSourceAuto)
+		require.NoError(t, err)
+		assert.Equal(t, http.MethodPost, m)
+		assert.Equal(t, "fwd.host.local", h)
+		assert.Equal(t, "/from/forwarded", u)
+	})
+
+	t.Run("request: happy path", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		c, _ := gin.CreateTestContext(w)
+
+		req := httptest.NewRequest(http.MethodDelete, "/v1/auth/api/v1/item?id=9", nil)
+		req.Host = "svc.request.local"
+		c.Request = req
+
+		m, h, u, err := getForwardedTarget(c, config.AuthHeaderSourceRequest)
+		require.NoError(t, err)
+		assert.Equal(t, http.MethodDelete, m)
+		assert.Equal(t, "svc.request.local", h)
+		assert.Equal(t, "/api/v1/item?id=9", u) // AuthV1Path trimmed
 	})
 
 	t.Run("nginx auth_request: URI fallback from URL when X-Original-URI is empty", func(t *testing.T) {
@@ -386,7 +462,7 @@ func Test_getForwardedTarget(t *testing.T) {
 		req.Header.Set("X-Original-URL", "http://%/bad") // force parse error
 		c.Request = req
 
-		_, _, _, err := getForwardedTarget(c, config.AuthHeaderSourceAuto)
+		_, _, _, err := getForwardedTarget(c, config.AuthHeaderSourceOriginal)
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid X-Original-URL")
 	})
@@ -400,7 +476,7 @@ func Test_getForwardedTarget(t *testing.T) {
 		req.Header.Set("X-Original-URI", "/get")
 		c.Request = req
 
-		_, _, _, err := getForwardedTarget(c, config.AuthHeaderSourceAuto)
+		_, _, _, err := getForwardedTarget(c, config.AuthHeaderSourceOriginal)
 		require.Error(t, err)
 		require.ErrorIs(t, err, ErrMissingForwardAuthHeaders)
 	})
