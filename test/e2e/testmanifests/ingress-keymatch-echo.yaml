@@ -71,3 +71,58 @@ spec:
                 name: echo
                 port:
                   number: 80
+
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: echo-envoy-gateway-keymatch
+spec:
+  parentRefs:
+    - name: eg-gw
+      namespace: envoy-gateway-system
+  hostnames:
+    - keymatch.127.0.0.1.nip.io
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - name: echo
+          port: 80
+
+
+---
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: echo-envoy-gateway-keymatch
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: echo-envoy-gateway-keymatch
+  extAuth:
+    http:
+      backendRefs:
+        - name: casbin-auth-keymatch
+          namespace: casbin-auth
+          port: 80
+      path: /v1/auth
+
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: echo-envoy-gateway-keymatch
+  namespace: casbin-auth
+spec:
+  from:
+    - group: gateway.envoyproxy.io
+      kind: SecurityPolicy
+      namespace: default
+  to:
+    - group: ""
+      kind: Service
+      name: casbin-auth-keymatch

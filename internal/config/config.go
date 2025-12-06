@@ -25,6 +25,7 @@ const (
 	AuthHeaderSourceAuto      AuthHeaderSource = "auto"
 	AuthHeaderSourceForwarded AuthHeaderSource = "forwarded"
 	AuthHeaderSourceOriginal  AuthHeaderSource = "original"
+	AuthHeaderSourceRequest   AuthHeaderSource = "request"
 )
 
 type ServerMode = string
@@ -130,14 +131,15 @@ func (c *JWTConfig) Validate() error {
 
 func (a *AuthConfig) Validate() error {
 	switch a.HeaderSource {
-	case AuthHeaderSourceAuto, AuthHeaderSourceForwarded, AuthHeaderSourceOriginal:
+	case AuthHeaderSourceAuto, AuthHeaderSourceForwarded, AuthHeaderSourceOriginal, AuthHeaderSourceRequest:
 		// ok
 	default:
 		return fmt.Errorf(
-			"invalid auth-header-source %q (expected one of: %q, %q, %q)",
+			"invalid auth-header-source %q (expected one of: %q, %q, %q, %q)",
 			a.HeaderSource,
 			AuthHeaderSourceForwarded,
 			AuthHeaderSourceOriginal,
+			AuthHeaderSourceRequest,
 			AuthHeaderSourceAuto,
 		)
 	}

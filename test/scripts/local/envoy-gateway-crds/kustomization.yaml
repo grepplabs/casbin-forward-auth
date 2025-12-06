@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+helmCharts:
+  - name: gateway-crds-helm
+    releaseName: envoy-gateway-crds
+    repo: oci://docker.io/envoyproxy
+    version: v1.6.1
+    namespace: envoy-gateway-system
+    valuesInline:
+      crds:
+        gatewayAPI:
+          enabled: false
+          channel: standard
+        envoyGateway:
+          enabled: true

@@ -19,6 +19,7 @@ func Test_RBAC_PubSub(t *testing.T) {
 		{name: "traefik", baseURL: "http://rbac.127.0.0.1.nip.io:30080"},
 		{name: "nginx", baseURL: "http://rbac.127.0.0.1.nip.io:30180"},
 		{name: "haproxy", baseURL: "http://rbac.127.0.0.1.nip.io:30280"},
+		{name: "envoy-gateway", baseURL: "http://rbac.127.0.0.1.nip.io:30380"},
 	}
 
 	kubeResourcePath := "testdata/rbac-echo-pubsub-policy.yaml"

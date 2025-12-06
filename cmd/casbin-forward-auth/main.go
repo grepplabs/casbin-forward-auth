@@ -43,7 +43,7 @@ func main() {
 
 	// auth flags
 	root.Flags().StringVar(&cfg.Auth.RouteConfigPath, "auth-route-config-path", "", "Path to the config YAML file containing route authorization rules.")
-	root.Flags().StringVar(&cfg.Auth.HeaderSource, "auth-header-source", config.AuthHeaderSourceForwarded, "Source of auth forward headers. One of: forwarded (Traefik), original (Nginx), auto. Use 'auto' with caution; proxy should strip untrusted X- headers.")
+	root.Flags().StringVar(&cfg.Auth.HeaderSource, "auth-header-source", config.AuthHeaderSourceForwarded, "Source of auth forward headers. One of: forwarded (Traefik), original (Nginx), request (Envoy Gateway) auto. Use 'auto' with caution; proxy should strip untrusted X- headers.")
 	root.Flags().DurationVar(&cfg.Auth.AuthRequestTimeout, "auth-request-timeout", 2*time.Second, "Timeout for evaluating an authentication request.")
 
 	// casbin flags
