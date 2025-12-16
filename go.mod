@@ -4,7 +4,7 @@ go 1.24.7
 
 require (
 	github.com/casbin/casbin/v2 v2.135.0
-	github.com/expr-lang/expr v1.17.6
+	github.com/expr-lang/expr v1.17.7
 	github.com/gin-contrib/zap v1.1.6
 	github.com/gin-gonic/gin v1.11.0
 	github.com/go-playground/validator/v10 v10.29.0
