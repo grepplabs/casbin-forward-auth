@@ -16,7 +16,6 @@ require (
 	github.com/lestrrat-go/jwx/v3 v3.0.12
 	github.com/negasus/haproxy-spoe-go v1.0.7
 	github.com/oklog/run v1.2.0
-	github.com/pkg/errors v0.9.1
 	github.com/prometheus/client_golang v1.23.2
 	github.com/samber/slog-zap/v2 v2.6.2
 	github.com/spf13/cobra v1.10.2
