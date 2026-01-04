@@ -3,9 +3,9 @@
 [![Build](https://github.com/grepplabs/casbin-forward-auth/actions/workflows/build.yml/badge.svg)](https://github.com/grepplabs/casbin-forward-auth/actions/workflows/build.yml)
 [![Release](https://img.shields.io/github/v/release/grepplabs/casbin-forward-auth?sort=semver)](https://github.com/grepplabs/casbin-forward-auth/releases)
 
-A ForwardAuth service for [Traefik](https://traefik.io/), [NGINX](https://nginx.org/), [HAProxy](https://www.haproxy.com/) or [Envoy Gateway](https://gateway.envoyproxy.io/) with [Casbin-based](https://casbin.org/) authorization.
+A ForwardAuth service for [Traefik](https://traefik.io/), [NGINX](https://nginx.org/), [HAProxy](https://www.haproxy.com/), [Envoy Gateway](https://gateway.envoyproxy.io/) or [Istio](https://istio.io/) with [Casbin-based](https://casbin.org/) authorization.
 
-This service provides a forward authentication endpoint for Traefik, NGINX, HAProxy or Envoy Gateway allowing you to protect your services with
+This service provides a forward authentication endpoint for Traefik, NGINX, HAProxy, Envoy Gateway or Istio allowing you to protect your services with
 fine-grained access control policies defined using Casbin.
 It acts as a gatekeeper, intercepting requests from the proxy, evaluating them against your Casbin policies, and then
 allowing or denying the request based on the outcome.
@@ -362,6 +362,55 @@ spec:
     - group: ""
       kind: Service
       name: casbin-auth-rbac
+```
+
+**Istio**
+
+Deploy the service with `AUTH_HEADER_SOURCE=request`, and configure the mesh extension provider to use [envoyExtAuthzHttp](https://istio.io/latest/docs/tasks/security/authorization/authz-custom/), calling the `casbin-forward-auth` service at the `/v1/auth` endpoint.
+Then, apply an [AuthorizationPolicy](https://istio.io/latest/docs/reference/config/security/authorization-policy/) that references the configured provider.
+
+See Istio limitations discussed in [#57933](https://github.com/istio/istio/issues/57933)
+
+* An example mesh config:
+
+```yaml
+meshConfig:
+  extensionProviders:
+    - name: casbin-auth-rbac
+      envoyExtAuthzHttp:
+        service: casbin-auth-rbac.casbin-auth.svc.cluster.local
+        port: 80
+        pathPrefix: /v1/auth
+        includeRequestHeadersInCheck:
+          - authorization
+          - cookie
+          - host
+        headersToUpstreamOnAllow:
+          - X-Casbin-Auth-JWT
+        headersToDownstreamOnDeny:
+          - WWW-Authenticate
+```
+
+* ingress gateway AuthorizationPolicy configuration:
+
+```yaml
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: echo-istio
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  action: CUSTOM
+  provider:
+    name: casbin-auth-rbac
+  rules:
+  - to:
+    - operation:
+        hosts: ["*"]
 ```
 
 ## Configuration

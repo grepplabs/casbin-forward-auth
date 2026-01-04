@@ -126,3 +126,21 @@ spec:
     - group: ""
       kind: Service
       name: casbin-auth-keymatch
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: echo-istio-keymatch
+spec:
+  hosts:
+    - keymatch.127.0.0.1.nip.io
+  gateways:
+  - echo-gw
+  http:
+  - route:
+    - destination:
+        host: echo
+        port:
+          number: 80
+

@@ -1,0 +1,28 @@
+meshConfig:
+  extensionProviders:
+    - name: casbin-auth-rbac
+      envoyExtAuthzHttp:
+        service: casbin-auth-rbac.casbin-auth.svc.cluster.local
+        port: 80
+        pathPrefix: /v1/auth
+        includeRequestHeadersInCheck:
+          - authorization
+          - cookie
+          - host
+        headersToUpstreamOnAllow:
+          - X-Casbin-Auth-JWT
+        headersToDownstreamOnDeny:
+          - WWW-Authenticate
+    - name: casbin-auth-keymatch
+      envoyExtAuthzHttp:
+        service: casbin-auth-keymatch.casbin-auth.svc.cluster.local
+        port: 80
+        pathPrefix: /v1/auth
+        includeRequestHeadersInCheck:
+          - authorization
+          - cookie
+          - host
+        headersToUpstreamOnAllow:
+          - X-Casbin-Auth-JWT
+        headersToDownstreamOnDeny:
+          - WWW-Authenticate

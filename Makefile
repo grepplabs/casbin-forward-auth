@@ -151,7 +151,10 @@ local-apply:
 	kubectl kustomize $(LOCAL_CLUSTER_ROOT_DIR)/../crds --enable-helm | kubectl apply --server-side=true -f -
 	kubectl kustomize $(LOCAL_CLUSTER_ROOT_DIR)/../traefik-crds --enable-helm | kubectl apply --server-side=true -f -
 	kubectl kustomize $(LOCAL_CLUSTER_ROOT_DIR)/../envoy-gateway-crds --enable-helm | kubectl apply --server-side=true -f -
-	kubectl kustomize $(LOCAL_CLUSTER_ROOT_DIR) --enable-helm | kubectl apply --server-side=true -f -
+	kubectl kustomize $(LOCAL_CLUSTER_ROOT_DIR)/../istio-base --enable-helm | kubectl apply --server-side=true --force-conflicts -f -
+	kubectl kustomize $(LOCAL_CLUSTER_ROOT_DIR)/../istio-istiod --enable-helm | kubectl apply --server-side=true --force-conflicts -f -
+	kubectl wait --for=condition=available deployment --all -A --timeout=300s
+	kubectl kustomize $(LOCAL_CLUSTER_ROOT_DIR) --enable-helm | kubectl apply --server-side=true --force-conflicts -f -
 	- kubectl delete pod -n casbin-auth --all
 	kubectl wait --for=condition=available deployment --all -A --timeout=300s
 

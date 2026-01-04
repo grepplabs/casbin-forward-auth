@@ -1,0 +1,91 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: echo-istio
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: echo-istio
+  template:
+    metadata:
+      labels:
+        app: echo-istio
+        istio.io/rev: default
+      annotations:
+        sidecar.istio.io/inject: "true"
+    spec:
+      containers:
+      - name: echo
+        image: ealen/echo-server:0.9.2
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: echo-istio
+spec:
+  selector:
+    app: echo-istio
+  ports:
+  - name: http
+    port: 80
+    targetPort: 80
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: echo-gw
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "*"
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: echo-istio
+spec:
+  hosts:
+#  - "*"
+    - echo.local
+    - echo.127.0.0.1.nip.io
+    - orders.local
+  gateways:
+  - echo-gw
+  http:
+  - route:
+    - destination:
+        host: echo-istio
+        port:
+          number: 80
+
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: echo-istio
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  action: CUSTOM
+  provider:
+    name: casbin-auth-rbac
+  rules:
+  - to:
+    - operation:
+        hosts:
+        - echo.local
+        - echo.127.0.0.1.nip.io
+        - orders.local
