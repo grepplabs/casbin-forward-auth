@@ -8,6 +8,9 @@ resources:
   - ../haproxy
   - ../envoy-gateway-crds
   - ../envoy-gateway
+  - ../istio-base
+  - ../istio-istiod
+  - ../istio-gateway
   - ../casbin-kube
   - ../casbin-forward-auth
   - ../dev-tools

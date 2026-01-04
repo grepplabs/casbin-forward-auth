@@ -26,6 +26,7 @@ func Test_KeyMatch(t *testing.T) {
 		{name: "nginx", baseURL: "http://keymatch.127.0.0.1.nip.io:30180"},
 		{name: "haproxy", baseURL: "http://keymatch.127.0.0.1.nip.io:30280"},
 		{name: "envoy-gateway", baseURL: "http://keymatch.127.0.0.1.nip.io:30380"},
+		// {name: "istio", baseURL: "http://keymatch.127.0.0.1.nip.io:30480"}, // see https://github.com/istio/istio/issues/57933
 	}
 
 	type tc struct {

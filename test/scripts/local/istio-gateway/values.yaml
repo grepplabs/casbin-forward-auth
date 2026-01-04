@@ -1,0 +1,16 @@
+revision: default
+
+service:
+  type: NodePort
+  ports:
+    - name: http2
+      port: 80
+      targetPort: 8080
+      nodePort: 30480
+
+autoscaling:
+  enabled: false
+
+podAnnotations:
+  sidecar.istio.io/logLevel: info
+  sidecar.istio.io/componentLogLevel: "router:debug,http:debug,rbac:debug,ext_authz:debug"

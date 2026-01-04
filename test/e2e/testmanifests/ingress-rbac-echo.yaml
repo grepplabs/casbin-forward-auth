@@ -10,7 +10,7 @@ metadata:
 spec:
   ingressClassName: traefik
   rules:
-    - host: rbac.127.0.0.1.nip.io
+    - host: orders.rbac.127.0.0.1.nip.io
       http:
         paths:
           - path: /
@@ -35,7 +35,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: rbac.127.0.0.1.nip.io
+    - host: orders.rbac.127.0.0.1.nip.io
       http:
         paths:
           - path: /
@@ -61,7 +61,7 @@ metadata:
 spec:
   ingressClassName: haproxy
   rules:
-    - host: rbac.127.0.0.1.nip.io
+    - host: orders.rbac.127.0.0.1.nip.io
       http:
         paths:
           - path: /
@@ -83,7 +83,7 @@ spec:
     - name: eg-gw
       namespace: envoy-gateway-system
   hostnames:
-    - rbac.127.0.0.1.nip.io
+    - orders.rbac.127.0.0.1.nip.io
   rules:
     - matches:
         - path:
@@ -127,3 +127,40 @@ spec:
     - group: ""          # core API group
       kind: Service
       name: casbin-auth-rbac
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: echo-istio-rbac
+spec:
+  hosts:
+    - orders.rbac.127.0.0.1.nip.io
+  gateways:
+  - echo-gw
+  http:
+  - route:
+    - destination:
+        host: echo
+        port:
+          number: 80
+
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: echo-istio-rbac
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  action: CUSTOM
+  provider:
+    name: casbin-auth-rbac
+  rules:
+  - when:
+    - key: request.headers[host]
+      values:
+        - "orders.rbac.127.0.0.1.nip.io"
+        - "orders.rbac.127.0.0.1.nip.io:30480"
