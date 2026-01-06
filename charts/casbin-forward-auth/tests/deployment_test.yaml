@@ -100,6 +100,22 @@ tests:
           any: true
           content: "--server-admin-port=18081"
 
+  - it: should expose named ports auth and admin
+    template: deployment.yaml
+    asserts:
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          any: true
+          content:
+            name: auth
+            protocol: TCP
+      - contains:
+          path: spec.template.spec.containers[0].ports
+          any: true
+          content:
+            name: admin
+            protocol: TCP
+
   - it: should render default liveness and readiness probes
     template: deployment.yaml
     asserts:

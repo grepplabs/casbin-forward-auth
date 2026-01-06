@@ -81,7 +81,7 @@ func buildEngine(registry *prometheus.Registry, cfg config.Config) (*gin.Engine,
 
 	authEngine, err := buildAuthEngine(registry, cfg, closers)
 	if err != nil {
-		return nil, closers, fmt.Errorf("error creating auth engint: %w", err)
+		return nil, closers, fmt.Errorf("error creating http auth engine: %w", err)
 	}
 
 	engine.Any(AuthV1Path, authHandler(authEngine, cfg.Auth.HeaderSource))
@@ -100,10 +100,24 @@ func buildSPOE(registry *prometheus.Registry, cfg config.Config) (*SPOEAgent, Cl
 	}
 	authEngine, err := buildAuthEngine(registry, cfg, closers)
 	if err != nil {
-		return nil, closers, fmt.Errorf("error creating auth engint: %w", err)
+		return nil, closers, fmt.Errorf("error creating spoe auth engine: %w", err)
 	}
 	agent := NewSPOEAgent(authEngine, cfg.Auth.AuthRequestTimeout)
 	return agent, closers, nil
+}
+
+func buildEnvoy(registry *prometheus.Registry, cfg config.Config) (*EnvoyAuthorizationServer, Closers, error) {
+	closers := make(Closers, 0)
+	gin.SetMode(gin.ReleaseMode)
+	if err := cfg.Auth.Validate(); err != nil {
+		return nil, closers, fmt.Errorf("invalid auth config: %w", err)
+	}
+	authEngine, err := buildAuthEngine(registry, cfg, closers)
+	if err != nil {
+		return nil, closers, fmt.Errorf("error creating auth engine: %w", err)
+	}
+	authServer := NewEnvoyAuthorizationServer(authEngine, registry)
+	return authServer, closers, nil
 }
 
 func buildAuthEngine(registry *prometheus.Registry, cfg config.Config, closers Closers) (*gin.Engine, error) {
@@ -239,6 +253,8 @@ func Start(cfg config.Config) error {
 		return StartHTTP(cfg)
 	case config.ServerModeSPOE:
 		return StartSPOE(cfg)
+	case config.ServerModeEnvoy:
+		return StartEnvoy(cfg)
 	default:
 		return fmt.Errorf("unsupported server mode: %s", cfg.Server.Mode)
 	}
@@ -268,6 +284,21 @@ func StartSPOE(cfg config.Config) error {
 	}
 	var group run.Group
 	addListenerServer(&group, cfg, agent.RunListener)
+	if err = addAdminServer(&group, cfg, registry); err != nil {
+		return err
+	}
+	return group.Run()
+}
+
+func StartEnvoy(cfg config.Config) error {
+	registry := newRegistry()
+	authServer, closers, err := buildEnvoy(registry, cfg)
+	defer func() { _ = closers.Close() }()
+	if err != nil {
+		return fmt.Errorf("error building envoy auth server: %w", err)
+	}
+	var group run.Group
+	addListenerServer(&group, cfg, authServer.RunListener)
 	if err = addAdminServer(&group, cfg, registry); err != nil {
 		return err
 	}
@@ -408,6 +439,36 @@ func forwardAuth(c *gin.Context, authEngine *gin.Engine, authHeaderSource config
 		return "", nil, errors.New(w.Body.String())
 	}
 	return w.Body.String(), nil, nil
+}
+
+func doForwardAuthHTTP(ctx context.Context, authEngine *gin.Engine, method, host, uri string, headers http.Header) (int, map[string]string, error) {
+	req, err := http.NewRequestWithContext(ctx, method, uri, nil)
+	if err != nil {
+		return 0, nil, fmt.Errorf("failed to create http request: %w", err)
+	}
+
+	req.Header = headers.Clone()
+	req.Host = host
+	req.Header.Set(HeaderHost, host)
+
+	w := httptest.NewRecorder()
+	authEngine.ServeHTTP(w, req)
+
+	switch w.Code {
+	case http.StatusOK:
+		return http.StatusOK, nil, nil
+	case http.StatusNotFound:
+		return http.StatusNotFound, nil, nil
+	case http.StatusUnauthorized:
+		resHeaders := make(map[string]string)
+		if hv := w.Header().Values(HeaderWWWAuthenticate); len(hv) > 0 {
+			resHeaders[HeaderWWWAuthenticate] = hv[0]
+		}
+		return http.StatusUnauthorized, resHeaders, nil
+
+	default:
+		return http.StatusForbidden, nil, nil
+	}
 }
 
 func getForwardedTarget(c *gin.Context, authHeaderSource config.AuthHeaderSource) (string, string, string, error) {

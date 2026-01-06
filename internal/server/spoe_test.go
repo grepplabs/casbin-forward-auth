@@ -212,6 +212,27 @@ func Test_SPOE_forwardAuthHTTP_NonOKNon401_MapsToForbidden(t *testing.T) {
 	assert.Empty(t, resHeaders)
 }
 
+func Test_SPOE_forwardAuthHTTP_NotFound_MapsToNotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	authEngine := gin.New()
+	authEngine.Any("/*any", func(c *gin.Context) {
+		c.String(http.StatusNotFound, "not found")
+	})
+
+	s := &SPOEAgent{
+		authEngine:  authEngine,
+		authTimeout: 2 * time.Second,
+	}
+
+	headers := make(http.Header)
+	code, resHeaders, err := s.forwardAuthHTTP(context.Background(), http.MethodGet, "svc.local", "/some/resource", headers)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusNotFound, code)
+	assert.Empty(t, resHeaders)
+}
+
 func Test_SPOE_performForwardAuth_HappyPath(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 
@@ -423,6 +444,52 @@ func Test_SPOEAgent_handleRequest_Forbidden(t *testing.T) {
 	assert.Equal(t, 0, allowAction.Value)
 
 	require.NotNil(t, statusAction, "status action should be set")
+	assert.Equal(t, action.TypeSetVar, statusAction.Type)
+	assert.Equal(t, action.ScopeTransaction, statusAction.Scope)
+	assert.Equal(t, http.StatusForbidden, statusAction.Value)
+}
+
+func Test_SPOEAgent_handleRequest_NotFound(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	// Create auth engine that denies all requests
+	authEngine := gin.New()
+	authEngine.Any("/*any", func(c *gin.Context) {
+		c.String(http.StatusNotFound, "not found")
+	})
+
+	agent := NewSPOEAgent(authEngine, 2*time.Second)
+
+	req := newTestSPOERequest(
+		http.MethodPost,
+		"cluster.svc.local",
+		"/api/not-exist",
+		map[string]string{
+			"Authorization": "Bearer invalid-token",
+		},
+	)
+
+	agent.handleRequest(req)
+
+	actions := req.Actions
+	require.Len(t, actions, 2, "expected 2 actions: allow and status")
+
+	var allowAction, statusAction *action.Action
+	for i := range actions {
+		if actions[i].Name == SPOEVarAllow {
+			allowAction = &actions[i]
+		}
+		if actions[i].Name == SPOEVarStatus {
+			statusAction = &actions[i]
+		}
+	}
+
+	require.NotNil(t, allowAction)
+	assert.Equal(t, action.TypeSetVar, allowAction.Type)
+	assert.Equal(t, action.ScopeTransaction, allowAction.Scope)
+	assert.Equal(t, 0, allowAction.Value)
+
+	require.NotNil(t, statusAction)
 	assert.Equal(t, action.TypeSetVar, statusAction.Type)
 	assert.Equal(t, action.ScopeTransaction, statusAction.Scope)
 	assert.Equal(t, http.StatusForbidden, statusAction.Value)

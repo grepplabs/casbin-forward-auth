@@ -52,7 +52,7 @@ spec:
             - --server-addr={{ printf ":%d" (int .Values.application.server.port) }}
             - --server-admin-port={{ .Values.application.server.adminPort }}
           ports:
-            - name: http
+            - name: auth
               containerPort: {{ .Values.application.server.port }}
               protocol: TCP
             - name: admin

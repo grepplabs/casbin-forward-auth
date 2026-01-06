@@ -3,10 +3,8 @@ package server
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net"
 	"net/http"
-	"net/http/httptest"
 	"strings"
 	"time"
 
@@ -96,36 +94,15 @@ func (s *SPOEAgent) performForwardAuth(ctx context.Context, msg *message.Message
 	if err == nil && code != http.StatusOK {
 		lw.V(1).Info("spoe forward auth rejected", "code", code)
 	}
+	// remap 404 to 403
+	if code == http.StatusNotFound {
+		code = http.StatusForbidden
+	}
 	return code, headers, err
 }
 
 func (s *SPOEAgent) forwardAuthHTTP(ctx context.Context, method, host, uri string, headers http.Header) (int, map[string]string, error) {
-	req, err := http.NewRequestWithContext(ctx, method, uri, nil)
-	if err != nil {
-		return 0, nil, fmt.Errorf("failed to create http request: %w", err)
-	}
-
-	req.Header = headers.Clone()
-	req.Host = host
-	req.Header.Set(HeaderHost, host)
-
-	w := httptest.NewRecorder()
-	s.authEngine.ServeHTTP(w, req)
-
-	switch w.Code {
-	case http.StatusOK:
-		return http.StatusOK, nil, nil
-
-	case http.StatusUnauthorized:
-		resHeaders := make(map[string]string)
-		if hv := w.Header().Values(HeaderWWWAuthenticate); len(hv) > 0 {
-			resHeaders[HeaderWWWAuthenticate] = hv[0]
-		}
-		return http.StatusUnauthorized, resHeaders, nil
-
-	default:
-		return http.StatusForbidden, nil, nil
-	}
+	return doForwardAuthHTTP(ctx, s.authEngine, method, host, uri, headers)
 }
 
 func setSPOEResponse(req *request.Request, code int, headers map[string]string) {

@@ -30,3 +30,7 @@ nodes:
       - containerPort: 30480
         hostPort: 30480
         listenAddress: "127.0.0.1"
+      # istio http ingressgateway2
+      - containerPort: 30481
+        hostPort: 30481
+        listenAddress: "127.0.0.1"

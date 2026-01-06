@@ -3,14 +3,14 @@
 [![Build](https://github.com/grepplabs/casbin-forward-auth/actions/workflows/build.yml/badge.svg)](https://github.com/grepplabs/casbin-forward-auth/actions/workflows/build.yml)
 [![Release](https://img.shields.io/github/v/release/grepplabs/casbin-forward-auth?sort=semver)](https://github.com/grepplabs/casbin-forward-auth/releases)
 
-A ForwardAuth service for [Traefik](https://traefik.io/), [NGINX](https://nginx.org/), [HAProxy](https://www.haproxy.com/), [Envoy Gateway](https://gateway.envoyproxy.io/) or [Istio](https://istio.io/) with [Casbin-based](https://casbin.org/) authorization.
+A ForwardAuth service for [Traefik](https://traefik.io/), [NGINX](https://nginx.org/), [HAProxy](https://www.haproxy.com/), [Envoy Gateway](https://gateway.envoyproxy.io/), [Envoy](https://www.envoyproxy.io/) or [Istio](https://istio.io/) with [Casbin-based](https://casbin.org/) authorization.
 
-This service provides a forward authentication endpoint for Traefik, NGINX, HAProxy, Envoy Gateway or Istio allowing you to protect your services with
+This service provides a forward authentication endpoint for Traefik, NGINX, HAProxy, Envoy, Envoy Gateway or Istio allowing you to protect your services with
 fine-grained access control policies defined using Casbin.
 It acts as a gatekeeper, intercepting requests from the proxy, evaluating them against your Casbin policies, and then
 allowing or denying the request based on the outcome.
 
-Traefik, NGINX and Envoy Gateway integrate via standard HTTP forward-auth requests, while for HAProxy,
+Traefik, NGINX and Envoy Gateway integrate via standard HTTP forward-auth requests, Envoy (in envoy mode) integrates via gRPC; Istio supports both HTTP and gRPC integrations; while for HAProxy,
 casbin-forward-auth itself runs as a [SPOE (Stream Processing Offload Engine) Agent](https://www.haproxy.com/blog/extending-haproxy-with-the-stream-processing-offload-engine).
 
 ### Key Features
@@ -364,7 +364,7 @@ spec:
       name: casbin-auth-rbac
 ```
 
-**Istio**
+**Istio HTTP**
 
 Deploy the service with `AUTH_HEADER_SOURCE=request`, and configure the mesh extension provider to use [envoyExtAuthzHttp](https://istio.io/latest/docs/tasks/security/authorization/authz-custom/), calling the `casbin-forward-auth` service at the `/v1/auth` endpoint.
 Then, apply an [AuthorizationPolicy](https://istio.io/latest/docs/reference/config/security/authorization-policy/) that references the configured provider.
@@ -413,6 +413,39 @@ spec:
         hosts: ["*"]
 ```
 
+**Istio gRPC**
+
+Deploy the service with `SERVER_MODE=envoy` to run in **Envoy gRPC** mode, and configure the mesh extension provider to use [envoyExtAuthzGrpc](https://istio.io/latest/docs/tasks/security/authorization/authz-custom/), calling the `casbin-forward-auth` service.
+Then, apply an [AuthorizationPolicy](https://istio.io/latest/docs/reference/config/security/authorization-policy/) that references the configured provider.
+
+Service port name must be set to `http2` or `grpc`
+
+```yaml
+service:
+  port: 9000
+  portName: grpc
+```
+
+* An example mesh config:
+
+```yaml
+meshConfig:
+  extensionProviders:
+    - name: casbin-auth-rbac
+      envoyExtAuthzGrpc:
+        service: casbin-auth-rbac.casbin-auth.svc.cluster.local
+        port: 9000
+        includeRequestHeadersInCheck:
+          - authorization
+          - cookie
+          - host
+        headersToUpstreamOnAllow:
+          - X-Casbin-Auth-JWT
+        headersToDownstreamOnDeny:
+          - WWW-Authenticate
+```
+
+
 ## Configuration
 
 The service is configured using command-line flags or environment variables.
@@ -421,7 +454,7 @@ The service is configured using command-line flags or environment variables.
 |:---------------------------------------|:---------------------------------------|:---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:---------------------------|
 | `server-addr`                          | `SERVER_ADDR`                          | Server listen address.                                                                                                                                                                 | `:8080`                    |
 | `server-admin-port`                    | `SERVER_ADMIN_PORT`                    | Admin server port (0 to disable).                                                                                                                                                      | `0`                        |
-| `server-mode`                          | `SERVER_MODE`                          | Server mode. One of: http (Traefik/Nginx), spoe (HAProxy)                                                                                                                              | `http`                     |
+| `server-mode`                          | `SERVER_MODE`                          | Server mode. One of: http (Traefik/Nginx), spoe (HAProxy), envoy (Envoy gRPC)                                                                                                          | `http`                     |
 | `server-tls-enable`                    | `SERVER_TLS_ENABLE`                    | Enable server-side TLS.                                                                                                                                                                | `false`                    |
 | `server-tls-refresh`                   | `SERVER_TLS_REFRESH`                   | Interval for refreshing server TLS certificates. Set to `0` to disable auto-refresh.                                                                                                   | `0`                        |
 | `server-tls-key-password`              | `SERVER_TLS_KEY_PASSWORD`              | Password to decrypt RSA private key.                                                                                                                                                   |                            |

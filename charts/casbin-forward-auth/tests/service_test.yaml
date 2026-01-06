@@ -27,10 +27,40 @@ tests:
           value: http
       - equal:
           path: spec.ports[0].targetPort
-          value: http
+          value: auth
       - equal:
           path: spec.selector["app.kubernetes.io/name"]
           value: casbin-forward-auth
+
+  - it: should render the main grpc service
+    template: service.yaml
+    documentIndex: 0
+    set:
+      service:
+        port: 9000
+        portName: grpc
+    asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: casbin-forward-auth
+      - equal:
+          path: spec.type
+          value: ClusterIP
+      - equal:
+          path: spec.ports[0].port
+          value: 9000
+      - equal:
+          path: spec.ports[0].name
+          value: grpc
+      - equal:
+          path: spec.ports[0].targetPort
+          value: auth
+      - equal:
+          path: spec.selector["app.kubernetes.io/name"]
+          value: casbin-forward-auth
+
 
   - it: should render the admin service
     template: service.yaml
@@ -84,7 +114,7 @@ tests:
           value: http
       - equal:
           path: spec.ports[0].targetPort
-          value: http
+          value: auth
       - equal:
           path: spec.selector["app.kubernetes.io/name"]
           value: casbin-forward-auth

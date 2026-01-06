@@ -31,8 +31,9 @@ const (
 type ServerMode = string
 
 const (
-	ServerModeHTTP ServerMode = "http"
-	ServerModeSPOE ServerMode = "spoe"
+	ServerModeHTTP  ServerMode = "http"
+	ServerModeSPOE  ServerMode = "spoe"
+	ServerModeEnvoy ServerMode = "envoy"
 )
 
 type ServerConfig struct {

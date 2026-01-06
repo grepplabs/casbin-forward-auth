@@ -116,6 +116,9 @@ run-server: ## run server
 run-spoe: ## run spoe agent
 	go run cmd/casbin-forward-auth/main.go --auth-route-config-path=examples/pubsub-routes-expr.yaml --server-mode=spoe --server-addr=":3000" --server-admin-port=8081
 
+run-envoy: ## run envoy auth server
+	go run cmd/casbin-forward-auth/main.go --auth-route-config-path=examples/pubsub-routes-expr.yaml --server-mode=envoy --server-addr=":9000" --server-admin-port=8081
+
 run-tls-server: ## run TLS server
 	go run cmd/casbin-forward-auth/main.go --auth-route-config-path=examples/pubsub-routes-expr.yaml \
 		--server-addr=":8448" \
