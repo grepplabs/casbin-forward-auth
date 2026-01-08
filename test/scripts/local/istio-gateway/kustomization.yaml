@@ -8,3 +8,9 @@ helmCharts:
     version: 1.28.2
     namespace: istio-system
     valuesFile: values.yaml
+  - name: gateway
+    releaseName: istio-ingressgateway2
+    repo: oci://gcr.io/istio-release/charts
+    version: 1.28.2
+    namespace: istio-system
+    valuesFile: values2.yaml

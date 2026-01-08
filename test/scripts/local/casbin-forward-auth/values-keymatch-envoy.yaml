@@ -1,4 +1,4 @@
-fullnameOverride: casbin-auth-keymatch-spoe
+fullnameOverride: casbin-auth-keymatch-envoy
 
 image:
   repository: local/casbin-forward-auth
@@ -8,15 +8,15 @@ serviceMonitor:
   enabled: true
 
 service:
-  port: 3000
-  portName: spoe
+  port: 9000
+  portName: grpc
 
 application:
   server:
-    port: 3000
+    port: 9000
   env:
     LOG_FORMAT: "text"
-    SERVER_MODE: "spoe"
+    SERVER_MODE: "envoy"
     CASBIN_MODEL: keymatch_model.conf
     CASBIN_ADAPTER_KUBE_CONFIG_LABELS: "casbin.grepplabs.com/model=keymatch"
   adapter:

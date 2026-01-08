@@ -13,11 +13,38 @@ meshConfig:
           - X-Casbin-Auth-JWT
         headersToDownstreamOnDeny:
           - WWW-Authenticate
+
+    - name: casbin-auth-rbac-grpc
+      envoyExtAuthzGrpc:
+        service: casbin-auth-rbac-envoy.casbin-auth.svc.cluster.local
+        port: "9000"
+        includeRequestHeadersInCheck:
+          - authorization
+          - cookie
+          - host
+        headersToUpstreamOnAllow:
+          - X-Casbin-Auth-JWT
+        headersToDownstreamOnDeny:
+          - WWW-Authenticate
+
     - name: casbin-auth-keymatch
       envoyExtAuthzHttp:
         service: casbin-auth-keymatch.casbin-auth.svc.cluster.local
         port: 80
         pathPrefix: /v1/auth
+        includeRequestHeadersInCheck:
+          - authorization
+          - cookie
+          - host
+        headersToUpstreamOnAllow:
+          - X-Casbin-Auth-JWT
+        headersToDownstreamOnDeny:
+          - WWW-Authenticate
+
+    - name: casbin-auth-keymatch-grpc
+      envoyExtAuthzGrpc:
+        service: casbin-auth-keymatch-envoy.casbin-auth.svc.cluster.local
+        port: "9000"
         includeRequestHeadersInCheck:
           - authorization
           - cookie

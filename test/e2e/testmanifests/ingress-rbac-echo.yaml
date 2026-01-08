@@ -138,6 +138,7 @@ spec:
     - orders.rbac.127.0.0.1.nip.io
   gateways:
   - echo-gw
+  - echo-gw2
   http:
   - route:
     - destination:
@@ -164,3 +165,23 @@ spec:
       values:
         - "orders.rbac.127.0.0.1.nip.io"
         - "orders.rbac.127.0.0.1.nip.io:30480"
+
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: echo-istio-rbac-grpc
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway2
+  action: CUSTOM
+  provider:
+    name: casbin-auth-rbac-grpc
+  rules:
+  - when:
+    - key: request.headers[host]
+      values:
+        - "orders.rbac.127.0.0.1.nip.io"
+        - "orders.rbac.127.0.0.1.nip.io:30481"

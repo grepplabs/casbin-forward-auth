@@ -9,9 +9,9 @@ spec:
   type: {{ .Values.service.type }}
   ports:
     - port: {{ .Values.service.port }}
-      targetPort: http
+      targetPort: auth
       protocol: TCP
-      name: http
+      name: {{ default "http" .Values.service.portName }}
   selector:
     {{- include "casbin-forward-auth.selectorLabels" . | nindent 4 }}
 

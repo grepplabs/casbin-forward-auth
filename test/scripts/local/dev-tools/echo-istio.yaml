@@ -49,6 +49,23 @@ spec:
       protocol: HTTP
     hosts:
     - "*"
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: echo-gw2
+spec:
+  selector:
+    istio: ingressgateway2
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "*"
+
 ---
 apiVersion: networking.istio.io/v1beta1
 kind: VirtualService
@@ -62,6 +79,7 @@ spec:
     - orders.local
   gateways:
   - echo-gw
+  - echo-gw2
   http:
   - route:
     - destination:
@@ -82,6 +100,27 @@ spec:
   action: CUSTOM
   provider:
     name: casbin-auth-rbac
+  rules:
+  - to:
+    - operation:
+        hosts:
+        - echo.local
+        - echo.127.0.0.1.nip.io
+        - orders.local
+
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: echo-istio-grpc
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway2
+  action: CUSTOM
+  provider:
+    name: casbin-auth-rbac-grpc
   rules:
   - to:
     - operation:

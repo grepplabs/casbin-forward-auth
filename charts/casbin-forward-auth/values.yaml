@@ -33,6 +33,7 @@ securityContext: {}
 service:
   type: ClusterIP
   port: 80
+  portName: http
   admin:
     type: ClusterIP
     port: 8081
