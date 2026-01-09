@@ -5,8 +5,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/casbin/casbin/v2/model"
-	fileadapter "github.com/casbin/casbin/v2/persist/file-adapter"
+	"github.com/casbin/casbin/v3/model"
+	fileadapter "github.com/casbin/casbin/v3/persist/file-adapter"
 	"github.com/grepplabs/casbin-forward-auth/internal/config"
 	"github.com/grepplabs/casbin-forward-auth/internal/models"
 	casbinkube "github.com/grepplabs/casbin-kube"

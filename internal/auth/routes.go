@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/casbin/casbin/v2"
+	"github.com/casbin/casbin/v3"
 	"github.com/gin-gonic/gin"
 	"github.com/grepplabs/loggo/zlog"
 	"github.com/tidwall/gjson"
