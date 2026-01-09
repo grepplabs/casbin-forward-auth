@@ -3,14 +3,14 @@ module github.com/grepplabs/casbin-forward-auth
 go 1.24.7
 
 require (
-	github.com/casbin/casbin/v2 v2.135.0
+	github.com/casbin/casbin/v3 v3.9.0
 	github.com/envoyproxy/go-control-plane/envoy v1.36.0
 	github.com/expr-lang/expr v1.17.7
 	github.com/gin-contrib/zap v1.1.6
 	github.com/gin-gonic/gin v1.11.0
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/golang-jwt/jwt/v5 v5.3.0
-	github.com/grepplabs/casbin-kube v0.0.7
+	github.com/grepplabs/casbin-kube v0.1.0
 	github.com/grepplabs/cert-source v0.0.9
 	github.com/grepplabs/loggo v0.0.3
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
@@ -138,10 +138,10 @@ require (
 	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.13.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
-	k8s.io/api v0.34.1 // indirect
+	k8s.io/api v0.34.3 // indirect
 	k8s.io/apiextensions-apiserver v0.34.1 // indirect
-	k8s.io/apimachinery v0.34.1 // indirect
-	k8s.io/client-go v0.34.1 // indirect
+	k8s.io/apimachinery v0.34.3 // indirect
+	k8s.io/client-go v0.34.3 // indirect
 	k8s.io/klog/v2 v2.130.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20250910181357-589584f1c912 // indirect
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4 // indirect
