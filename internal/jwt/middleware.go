@@ -63,7 +63,7 @@ func (v *Verifier) Middleware() gin.HandlerFunc {
 			v.unauthorized(c, err, "missing or malformed bearer token")
 			return
 		}
-		_, err = verifyToken(signedJWT, v.cfg, v.keySet)
+		_, err = verifyToken(c, signedJWT, v.cfg, v.keySet)
 		if err != nil {
 			v.unauthorized(c, err, "invalid token")
 			return

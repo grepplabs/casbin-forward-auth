@@ -1,6 +1,7 @@
 package jwt
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -11,15 +12,14 @@ import (
 	"github.com/grepplabs/casbin-forward-auth/internal/config"
 )
 
-func verifyToken(signedJWT string, cfg *config.JWTConfig, pubSet jwk.Set) (jwt.Token, error) {
+func verifyToken(ctx context.Context, signedJWT string, cfg *config.JWTConfig, pubSet jwk.Set) (jwt.Token, error) {
 	if isFileSet(cfg) && cfg.UseX509 {
-		return verifyX509Token(signedJWT, cfg, pubSet)
-	} else {
-		return verifyJWKToken(signedJWT, cfg, pubSet)
+		return verifyX509Token(ctx, signedJWT, cfg, pubSet)
 	}
+	return verifyJWKToken(ctx, signedJWT, cfg, pubSet)
 }
 
-func verifyJWKToken(signedJWT string, cfg *config.JWTConfig, pubSet jwk.Set) (jwt.Token, error) {
+func verifyJWKToken(ctx context.Context, signedJWT string, cfg *config.JWTConfig, pubSet jwk.Set) (jwt.Token, error) {
 	if pubSet == nil || pubSet.Len() == 0 {
 		return nil, errors.New("no keys in public JWKS")
 	}
@@ -30,6 +30,7 @@ func verifyJWKToken(signedJWT string, cfg *config.JWTConfig, pubSet jwk.Set) (jw
 		jwt.WithValidate(true),         // validate std claims (exp, nbf, etc.)
 		jwt.WithIssuer(cfg.Issuer),     // require matching iss
 		jwt.WithAudience(cfg.Audience), // require matching aud
+		jwt.WithContext(ctx),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("verify JWK token: %w", err)
@@ -37,11 +38,11 @@ func verifyJWKToken(signedJWT string, cfg *config.JWTConfig, pubSet jwk.Set) (jw
 	return token, nil
 }
 
-func verifyX509Token(signedJWT string, cfg *config.JWTConfig, pubSet jwk.Set) (jwt.Token, error) {
+func verifyX509Token(ctx context.Context, signedJWT string, cfg *config.JWTConfig, pubSet jwk.Set) (jwt.Token, error) {
 	if pubSet == nil || pubSet.Len() == 0 {
 		return nil, errors.New("no keys in public JWKS")
 	}
-	msg, err := jws.Verify([]byte(signedJWT), jws.WithKeySet(pubSet, jws.WithInferAlgorithmFromKey(true), jws.WithRequireKid(false)))
+	msg, err := jws.Verify([]byte(signedJWT), jws.WithKeySet(pubSet, jws.WithInferAlgorithmFromKey(true), jws.WithRequireKid(false)), jws.WithContext(ctx))
 	if err != nil {
 		return nil, fmt.Errorf("verify x509 token: %w", err)
 	}
@@ -50,6 +51,7 @@ func verifyX509Token(signedJWT string, cfg *config.JWTConfig, pubSet jwk.Set) (j
 		jwt.WithValidate(true),         // validate std claims (exp, nbf, etc.)
 		jwt.WithIssuer(cfg.Issuer),     // require matching iss
 		jwt.WithAudience(cfg.Audience), // require matching aud
+		jwt.WithContext(ctx),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("validate x509 token: %w", err)

@@ -50,7 +50,7 @@ func TestVerifyToken_UsesX509Path(t *testing.T) {
 	signedJWT, err := signToken("alice", privJWK, cfg)
 	require.NoError(t, err)
 
-	token, err := verifyToken(signedJWT, &cfg, pubSet)
+	token, err := verifyToken(t.Context(), signedJWT, &cfg, pubSet)
 	require.NoError(t, err)
 	require.NotNil(t, token)
 }
@@ -79,7 +79,7 @@ func TestVerifyToken_UsesJWKPath(t *testing.T) {
 	signedJWT, err := signToken("alice", privKey, cfg)
 	require.NoError(t, err)
 
-	token, err := verifyToken(signedJWT, &cfg, pubSet)
+	token, err := verifyToken(t.Context(), signedJWT, &cfg, pubSet)
 	require.NoError(t, err)
 	require.NotNil(t, token)
 }
@@ -106,7 +106,7 @@ func TestVerifyJWKToken(t *testing.T) {
 		signedJWT, err := signToken("alice", privKey, cfg)
 		require.NoError(t, err)
 
-		token, err := verifyJWKToken(signedJWT, &cfg, pubSet)
+		token, err := verifyJWKToken(t.Context(), signedJWT, &cfg, pubSet)
 		require.NoError(t, err)
 		require.NotNil(t, token)
 	})
@@ -136,7 +136,7 @@ func TestVerifyJWKToken(t *testing.T) {
 		signedJWT, err := signToken("alice", privKey, signCfg)
 		require.NoError(t, err)
 
-		token, err := verifyJWKToken(signedJWT, &verifyCfg, pubSet)
+		token, err := verifyJWKToken(t.Context(), signedJWT, &verifyCfg, pubSet)
 		require.Error(t, err)
 		require.Nil(t, token)
 	})
@@ -164,7 +164,7 @@ func TestVerifyJWKToken(t *testing.T) {
 		signedJWT, err := signToken("alice", privKey, signCfg)
 		require.NoError(t, err)
 
-		token, err := verifyJWKToken(signedJWT, &verifyCfg, pubSet)
+		token, err := verifyJWKToken(t.Context(), signedJWT, &verifyCfg, pubSet)
 		require.Error(t, err)
 		require.Nil(t, token)
 	})
@@ -198,7 +198,7 @@ func TestVerifyJWKToken(t *testing.T) {
 		signedExpiredBytes, err := jwt.Sign(expiredTok, jwt.WithKey(jwa.RS256(), privKey))
 		require.NoError(t, err)
 
-		token, err := verifyJWKToken(string(signedExpiredBytes), &cfg, pubSet)
+		token, err := verifyJWKToken(t.Context(), string(signedExpiredBytes), &cfg, pubSet)
 		require.Error(t, err)
 		require.Nil(t, token)
 	})
@@ -211,7 +211,7 @@ func TestVerifyJWKToken(t *testing.T) {
 
 		emptySet := jwk.NewSet()
 
-		token, err := verifyJWKToken("whatever", &cfg, emptySet)
+		token, err := verifyJWKToken(t.Context(), "whatever", &cfg, emptySet)
 		require.Error(t, err)
 		require.Nil(t, token)
 	})
@@ -267,7 +267,7 @@ func TestVerifyX509Token(t *testing.T) {
 		signedBytes, err := jwt.Sign(tok, jwt.WithKey(jwa.RS256(), rsaPriv))
 		require.NoError(t, err)
 
-		parsed, err := verifyX509Token(string(signedBytes), &cfg, pubSet)
+		parsed, err := verifyX509Token(t.Context(), string(signedBytes), &cfg, pubSet)
 		require.NoError(t, err)
 		require.NotNil(t, parsed)
 	})
@@ -292,7 +292,7 @@ func TestVerifyX509Token(t *testing.T) {
 		signedBytes, err := jwt.Sign(tok, jwt.WithKey(jwa.RS256(), rsaPriv))
 		require.NoError(t, err)
 
-		parsed, err := verifyX509Token(string(signedBytes), &verifyCfg, pubSet)
+		parsed, err := verifyX509Token(t.Context(), string(signedBytes), &verifyCfg, pubSet)
 		require.Error(t, err)
 		require.Nil(t, parsed)
 	})
@@ -317,7 +317,7 @@ func TestVerifyX509Token(t *testing.T) {
 		signedBytes, err := jwt.Sign(tok, jwt.WithKey(jwa.RS256(), rsaPriv))
 		require.NoError(t, err)
 
-		parsed, err := verifyX509Token(string(signedBytes), &verifyCfg, pubSet)
+		parsed, err := verifyX509Token(t.Context(), string(signedBytes), &verifyCfg, pubSet)
 		require.Error(t, err)
 		require.Nil(t, parsed)
 	})
@@ -340,7 +340,7 @@ func TestVerifyX509Token(t *testing.T) {
 		signedBytes, err := jwt.Sign(tok, jwt.WithKey(jwa.RS256(), rsaPriv))
 		require.NoError(t, err)
 
-		parsed, err := verifyX509Token(string(signedBytes), &cfg, pubSet)
+		parsed, err := verifyX509Token(t.Context(), string(signedBytes), &cfg, pubSet)
 		require.Error(t, err)
 		require.Nil(t, parsed)
 	})
@@ -354,7 +354,7 @@ func TestVerifyX509Token(t *testing.T) {
 
 		emptySet := jwk.NewSet()
 
-		parsed, err := verifyX509Token("whatever", &cfg, emptySet)
+		parsed, err := verifyX509Token(t.Context(), "whatever", &cfg, emptySet)
 		require.Error(t, err)
 		require.Nil(t, parsed)
 	})
