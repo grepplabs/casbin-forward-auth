@@ -3,7 +3,7 @@ module github.com/grepplabs/casbin-forward-auth
 go 1.24.7
 
 require (
-	github.com/casbin/casbin/v3 v3.9.0
+	github.com/casbin/casbin/v3 v3.10.0
 	github.com/envoyproxy/go-control-plane/envoy v1.36.0
 	github.com/expr-lang/expr v1.17.7
 	github.com/gin-contrib/zap v1.1.6
