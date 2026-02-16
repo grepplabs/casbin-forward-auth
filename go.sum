@@ -149,8 +149,8 @@ github.com/grepplabs/casbin-kube v0.1.0 h1:zXTYlG2ih/VOLet4Ga8yBn4nOLdIEo79vmgnp
 github.com/grepplabs/casbin-kube v0.1.0/go.mod h1:vTQ07tqHqQD8GLdxo0E+G3CJ33FpU7VLHc0zLfTzhMk=
 github.com/grepplabs/cert-source v0.0.9 h1:sVAGe/B8W/PRJH4CVhMA7wYLEXml3epTbN9vdI74jk0=
 github.com/grepplabs/cert-source v0.0.9/go.mod h1:AseXyB2uF/HeaPGQswmqcJNNF0Q0yqtr3zQM7P4y8pA=
-github.com/grepplabs/loggo v0.0.3 h1:9M0Ze1OGDlvYRZL2fxjWA6jqlmOhoYJhq7fbk0JaI5c=
-github.com/grepplabs/loggo v0.0.3/go.mod h1:nJDsiiPVHNpf4shUbcr1BASmE51XeB5o1aR7zecaSg8=
+github.com/grepplabs/loggo v0.0.4 h1:V9s9fqiWEBku3G7wQZnWMypS5xqWeRt5PfIxG4lj5t4=
+github.com/grepplabs/loggo v0.0.4/go.mod h1:qHmHqA9XuX+g/Qh+yC9rBNrYhV0msQh4bBA3Qz/9O2M=
 github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 h1:UH//fgunKIs4JdUbpDl1VZCDaL56wXCB/5+wF6uHfaI=
 github.com/grpc-ecosystem/go-grpc-middleware v1.4.0/go.mod h1:g5qyo/la0ALbONm6Vbp88Yd8NsDy6rZz+RcrMPxvld8=
 github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.1.0 h1:QGLs/O40yoNK9vmy4rhUGBVyMf1lISBGtXRpsu/Qu/o=
@@ -368,8 +368,8 @@ golang.org/x/sys v0.0.0-20190422165155-953cdadca894/go.mod h1:h1NjWce9XRLGQEsW7w
 golang.org/x/sys v0.0.0-20200930185726-fdedc70b468f/go.mod h1:h1NjWce9XRLGQEsW7wpKNCjG9DtNlClVuFLEZdDNbEs=
 golang.org/x/sys v0.0.0-20211025201205-69cdffdb9359/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.6.0/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
-golang.org/x/sys v0.40.0 h1:DBZZqJ2Rkml6QMQsZywtnjnnGvHza6BTfYFWY9kjEWQ=
-golang.org/x/sys v0.40.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=
+golang.org/x/sys v0.41.0 h1:Ivj+2Cp/ylzLiEU89QhWblYnOE9zerudt9Ftecq2C6k=
+golang.org/x/sys v0.41.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=
 golang.org/x/term v0.39.0 h1:RclSuaJf32jOqZz74CkPA9qFuVTX7vhLlpfj/IGWlqY=
 golang.org/x/term v0.39.0/go.mod h1:yxzUCTP/U+FzoxfdKmLaA0RV1WgE0VY7hXBwKtY/4ww=
 golang.org/x/text v0.3.0/go.mod h1:NqM8EUOU14njkJ3fqMW+pc6Ldnwhi/IjpwHt7yyuwOQ=
