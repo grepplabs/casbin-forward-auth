@@ -5,7 +5,7 @@ go 1.24.7
 require (
 	github.com/casbin/casbin/v3 v3.10.0
 	github.com/envoyproxy/go-control-plane/envoy v1.36.0
-	github.com/expr-lang/expr v1.17.7
+	github.com/expr-lang/expr v1.17.8
 	github.com/gin-contrib/zap v1.1.6
 	github.com/gin-gonic/gin v1.11.0
 	github.com/go-playground/validator/v10 v10.30.1
