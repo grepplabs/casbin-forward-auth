@@ -81,7 +81,7 @@ jobs:
 
       - name: Build and push multi-arch (host cross-compiling)
         if: ${{ inputs.push_image }}
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ./Dockerfile
