@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -57,7 +58,7 @@ func TestThreeEngines_TwoCollect_OneExposes(t *testing.T) {
 
 	// hit main engine
 	{
-		req := httptest.NewRequest(http.MethodGet, "/main", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/main", nil)
 		w := httptest.NewRecorder()
 		mainEngine.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -65,14 +66,14 @@ func TestThreeEngines_TwoCollect_OneExposes(t *testing.T) {
 
 	// hit second engine
 	{
-		req := httptest.NewRequest(http.MethodGet, "/second", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/second", nil)
 		w := httptest.NewRecorder()
 		secondEngine.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
 	}
 
 	// now scrape ONLY from metric engine
-	metricsReq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	metricsReq := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/metrics", nil)
 	metricsRec := httptest.NewRecorder()
 	metricsEngine.ServeHTTP(metricsRec, metricsReq)
 
@@ -123,20 +124,20 @@ func TestTwoEnginesSharedRegistry_OnlyOneExports_WithNamespaces(t *testing.T) {
 
 	// Hit routes on both engines
 	{
-		req := httptest.NewRequest(http.MethodGet, "/main", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/main", nil)
 		w := httptest.NewRecorder()
 		r1.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
 	}
 	{
-		req := httptest.NewRequest(http.MethodGet, "/second", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/second", nil)
 		w := httptest.NewRecorder()
 		r2.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
 	}
 
 	// Scrape metrics from engine 1 only
-	mreq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	mreq := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/metrics", nil)
 	mwrec := httptest.NewRecorder()
 	r1.ServeHTTP(mwrec, mreq)
 	body := mwrec.Body.String()
@@ -178,7 +179,7 @@ func TestTwoEnginesSharedRegistry_OnlyOneExports(t *testing.T) {
 
 	// hit engine1
 	{
-		req := httptest.NewRequest(http.MethodGet, "/engine1", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/engine1", nil)
 		w := httptest.NewRecorder()
 		r1.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
@@ -186,14 +187,14 @@ func TestTwoEnginesSharedRegistry_OnlyOneExports(t *testing.T) {
 
 	// hit engine2
 	{
-		req := httptest.NewRequest(http.MethodGet, "/engine2", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/engine2", nil)
 		w := httptest.NewRecorder()
 		r2.ServeHTTP(w, req)
 		assert.Equal(t, http.StatusOK, w.Code)
 	}
 
 	// now scrape metrics ONLY from engine1
-	mreq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	mreq := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/metrics", nil)
 	mwrec := httptest.NewRecorder()
 	r1.ServeHTTP(mwrec, mreq)
 	body := mwrec.Body.String()
@@ -224,13 +225,13 @@ func TestCustomRegistryMetrics(t *testing.T) {
 	r.GET("/metrics", NewHandlerWithConfig(HandlerConfig{Gatherer: customRegistry}))
 
 	// hit non-existing path -> 404
-	req := httptest.NewRequest(http.MethodGet, "/ping?test=1", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/ping?test=1", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 
 	// read metrics
-	mreq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	mreq := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/metrics", nil)
 	mwrec := httptest.NewRecorder()
 	r.ServeHTTP(mwrec, mreq)
 	body := mwrec.Body.String()
@@ -249,13 +250,13 @@ func TestDefaultRegistryMetrics(t *testing.T) {
 	r.GET("/metrics", NewHandler())
 
 	// 404
-	req := httptest.NewRequest(http.MethodGet, "/ping?test=1", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/ping?test=1", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusNotFound, w.Code)
 
 	// metrics
-	mreq := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	mreq := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/metrics", nil)
 	mwrec := httptest.NewRecorder()
 	r.ServeHTTP(mwrec, mreq)
 
@@ -292,13 +293,13 @@ func TestMiddlewareConfig_LabelFuncs(t *testing.T) {
 	})
 
 	// call it
-	req := httptest.NewRequest(http.MethodGet, "/ok", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/ok", nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	// read metrics
-	body, code := metricsBody(r, "/metrics")
+	body, code := metricsBody(t.Context(), r, "/metrics")
 	assert.Equal(t, http.StatusOK, code)
 	// note: scheme="http" from above
 	assert.Contains(t, body, `gin_request_duration_seconds_count{code="200",host="example.com",method="overridden_GET",scheme="http",url="/ok"} 1`)
@@ -352,13 +353,13 @@ func TestMiddlewareConfig_StatusCodeResolver(t *testing.T) {
 		c.Status(http.StatusInternalServerError)
 	})
 
-	assert.Equal(t, http.StatusOK, perform(r, "/handler_for_ok"))
-	assert.Equal(t, http.StatusConflict, perform(r, "/handler_for_nok"))
-	assert.Equal(t, http.StatusInternalServerError, perform(r, "/handler_for_not_found"))
-	assert.Equal(t, http.StatusInternalServerError, perform(r, "/handler_for_not_authorized"))
-	assert.Equal(t, http.StatusInternalServerError, perform(r, "/handler_for_unknown_error"))
+	assert.Equal(t, http.StatusOK, perform(t.Context(), r, "/handler_for_ok"))
+	assert.Equal(t, http.StatusConflict, perform(t.Context(), r, "/handler_for_nok"))
+	assert.Equal(t, http.StatusInternalServerError, perform(t.Context(), r, "/handler_for_not_found"))
+	assert.Equal(t, http.StatusInternalServerError, perform(t.Context(), r, "/handler_for_not_authorized"))
+	assert.Equal(t, http.StatusInternalServerError, perform(t.Context(), r, "/handler_for_unknown_error"))
 
-	body, code := metricsBody(r, "/metrics")
+	body, code := metricsBody(t.Context(), r, "/metrics")
 	assert.Equal(t, http.StatusOK, code)
 	assert.Contains(t, body, "myapp_requests_total")
 	assert.Contains(t, body, `myapp_requests_total{code="200",host="example.com",method="GET",url="/handler_for_ok"} 1`)
@@ -393,9 +394,9 @@ func TestMiddlewareConfig_HistogramOptsFunc(t *testing.T) {
 		c.JSON(http.StatusOK, "OK")
 	})
 
-	assert.Equal(t, http.StatusOK, perform(r, "/ok"))
+	assert.Equal(t, http.StatusOK, perform(t.Context(), r, "/ok"))
 
-	body, code := metricsBody(r, "/metrics")
+	body, code := metricsBody(t.Context(), r, "/metrics")
 	assert.Equal(t, http.StatusOK, code)
 	assert.Contains(t, body, `gin_request_duration_seconds_count{code="200",host="example.com",method="GET",my_const="123",url="/ok"} 1`)
 }
@@ -423,22 +424,22 @@ func TestMiddlewareConfig_CounterOptsFunc(t *testing.T) {
 		c.JSON(http.StatusOK, "OK")
 	})
 
-	assert.Equal(t, http.StatusOK, perform(r, "/ok"))
+	assert.Equal(t, http.StatusOK, perform(t.Context(), r, "/ok"))
 
-	body, code := metricsBody(r, "/metrics")
+	body, code := metricsBody(t.Context(), r, "/metrics")
 	assert.Equal(t, http.StatusOK, code)
 	assert.Contains(t, body, `gin_requests_total{code="200",host="example.com",method="GET",my_const="123",url="/ok"} 1`)
 }
 
-func perform(r *gin.Engine, path string) int {
-	req := httptest.NewRequest(http.MethodGet, path, nil)
+func perform(ctx context.Context, r *gin.Engine, path string) int {
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, path, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	return w.Code
 }
 
-func metricsBody(r *gin.Engine, path string) (string, int) {
-	req := httptest.NewRequest(http.MethodGet, path, nil)
+func metricsBody(ctx context.Context, r *gin.Engine, path string) (string, int) {
+	req := httptest.NewRequestWithContext(ctx, http.MethodGet, path, nil)
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 	return w.Body.String(), w.Code

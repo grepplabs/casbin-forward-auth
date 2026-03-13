@@ -35,7 +35,7 @@ func TestVerifier_Middleware(t *testing.T) {
 			c.Status(http.StatusOK)
 		})
 
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -74,7 +74,7 @@ func TestVerifier_Middleware(t *testing.T) {
 			c.Status(http.StatusOK)
 		})
 
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 		w := httptest.NewRecorder()
 
 		router.ServeHTTP(w, req)
@@ -114,7 +114,7 @@ func TestVerifier_Middleware(t *testing.T) {
 			c.Status(http.StatusOK)
 		})
 
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 		req.Header.Set("Authorization", "Bearer abc")
 		w := httptest.NewRecorder()
 
@@ -163,7 +163,7 @@ func TestVerifier_Middleware(t *testing.T) {
 			c.Status(http.StatusOK)
 		})
 
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/test", nil)
 		req.Header.Set("Authorization", "Bearer "+signedJWT)
 		w := httptest.NewRecorder()
 
@@ -176,7 +176,7 @@ func TestVerifier_Middleware(t *testing.T) {
 
 func TestExtractBearerToken(t *testing.T) {
 	t.Run("valid bearer", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/x", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil)
 		req.Header.Set("Authorization", "Bearer token-value")
 
 		token, err := extractBearerToken(req)
@@ -185,7 +185,7 @@ func TestExtractBearerToken(t *testing.T) {
 	})
 
 	t.Run("valid bearer lowercase", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/x", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil)
 		req.Header.Set("Authorization", "bearer abc123")
 
 		token, err := extractBearerToken(req)
@@ -194,7 +194,7 @@ func TestExtractBearerToken(t *testing.T) {
 	})
 
 	t.Run("missing header", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/x", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil)
 
 		token, err := extractBearerToken(req)
 		require.Error(t, err)
@@ -203,7 +203,7 @@ func TestExtractBearerToken(t *testing.T) {
 	})
 
 	t.Run("not bearer scheme", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/x", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/x", nil)
 		req.Header.Set("Authorization", "Basic xyz")
 
 		token, err := extractBearerToken(req)

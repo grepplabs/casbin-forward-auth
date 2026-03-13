@@ -79,7 +79,7 @@ p, iam::123456789012:sa/9e4fdb1c-3345-4c07-98d9-73b993c9dd42, pubsub:eu-central-
 		t.Run(sc.name, func(t *testing.T) {
 			for _, u := range urls {
 				t.Run(u, func(t *testing.T) {
-					req := httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
+					req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/auth", nil)
 					req.Header.Set(HeaderForwardedURI, u)
 					req.Header.Set(HeaderForwardedMethod, http.MethodPost)
 					req.Header.Set(HeaderForwardedHost, sc.host)
@@ -117,7 +117,7 @@ func TestAuth_RBAC_PubSub_NoPolicies_Forbidden(t *testing.T) {
 
 	for _, u := range urls {
 		t.Run(fmt.Sprintf("orders topic - authorize %s OK", u), func(t *testing.T) {
-			req := httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/auth", nil)
 			req.Header.Set("Authorization", "Bearer "+newTestBearerToken(t))
 			req.Header.Set(HeaderForwardedURI, u)
 			req.Header.Set(HeaderForwardedMethod, http.MethodPost)
@@ -185,7 +185,7 @@ p, cathy, /cathy_data, (GET)|(POST)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// The handler reads forwarded headers; the request method to /v1/auth can stay GET.
-			req := httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
+			req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/auth", nil)
 			req.Header.Set("Authorization", "Basic "+newTestBasic(t, tt.user))
 			req.Header.Set(HeaderForwardedURI, tt.url)
 			req.Header.Set(HeaderForwardedMethod, tt.method)

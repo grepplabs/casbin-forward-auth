@@ -29,7 +29,7 @@ func Test_forwardAuth_MissingHeaders(t *testing.T) {
 	c, _ := gin.CreateTestContext(w)
 
 	// attach a request (no forwarded header set)
-	c.Request = httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
+	c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/auth", nil)
 
 	_, headers, err := forwardAuth(c, authEngine, config.AuthHeaderSourceForwarded)
 	require.Error(t, err)
@@ -63,7 +63,7 @@ func Test_forwardAuth_HappyPath_StripsForwardedHeaders_SetsMethodAndURI(t *testi
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	req := httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/auth", nil)
 
 	req.Header.Set(HeaderForwardedMethod, http.MethodPost)
 	req.Header.Set(HeaderForwardedHost, "svc.local")
@@ -115,7 +115,7 @@ func Test_forwardAuth_HappyPath_NginxAuthRequest(t *testing.T) {
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
-	req := httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/auth", nil)
 
 	// nginx ingress auth_request-style headers
 	req.Header.Set("X-Original-URI", "/get")
@@ -202,7 +202,7 @@ func Test_forwardAuth_RejectsWhenAuthEngineReturnsNonOK(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	req := httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/auth", nil)
 	req.Header.Set(HeaderForwardedMethod, http.MethodGet)
 	req.Header.Set(HeaderForwardedHost, "svc.local")
 	req.Header.Set(HeaderForwardedURI, "/deny")
@@ -223,35 +223,35 @@ func Test_buildEngine_TestEndpoints(t *testing.T) {
 	defer closers.Close()
 
 	t.Run("healthz OK", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/healthz", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/healthz", nil)
 		w := httptest.NewRecorder()
 		engine.ServeHTTP(w, req)
 		require.Equal(t, http.StatusOK, w.Code)
 	})
 
 	t.Run("readyz OK", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/readyz", nil)
 		w := httptest.NewRecorder()
 		engine.ServeHTTP(w, req)
 		require.Equal(t, http.StatusOK, w.Code)
 	})
 
 	t.Run("metrics OK", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/metrics", nil)
 		w := httptest.NewRecorder()
 		engine.ServeHTTP(w, req)
 		require.Equal(t, http.StatusOK, w.Code)
 	})
 
 	t.Run("auth without forwarded headers Forbidden", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/auth", nil)
 		w := httptest.NewRecorder()
 		engine.ServeHTTP(w, req)
 		require.Equal(t, http.StatusForbidden, w.Code)
 	})
 
 	t.Run("unknown route returns NotFound", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/anything", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/anything", nil)
 		w := httptest.NewRecorder()
 		engine.ServeHTTP(w, req)
 		require.Equal(t, http.StatusNotFound, w.Code)
@@ -278,7 +278,7 @@ func Test_buildEngine_JWTNoneMode(t *testing.T) {
 	defer closers.Close()
 
 	t.Run("no Bearer token -> returns 401 Unauthorized", func(t *testing.T) {
-		req := httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/auth", nil)
 		req.Header.Set(HeaderForwardedMethod, http.MethodGet)
 		req.Header.Set(HeaderForwardedHost, "svc.local")
 		req.Header.Set(HeaderForwardedURI, "/some/resource")
@@ -297,7 +297,7 @@ func Test_buildEngine_JWTNoneMode(t *testing.T) {
 		payload := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"alice"}`))
 		token := fmt.Sprintf("%s.%s.", header, payload) // no signature
 
-		req := httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/auth", nil)
 		req.Header.Set(HeaderForwardedMethod, http.MethodGet)
 		req.Header.Set(HeaderForwardedHost, "svc.local")
 		req.Header.Set(HeaderForwardedURI, "/some/resource")
@@ -321,7 +321,7 @@ func Test_getForwardedTarget(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 
-		req := httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/auth", nil)
 		req.Header.Set(HeaderForwardedMethod, http.MethodPost)
 		req.Header.Set(HeaderForwardedHost, "svc.local")
 		req.Header.Set(HeaderForwardedURI, "/target/path?q=1")
@@ -339,7 +339,7 @@ func Test_getForwardedTarget(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 
 		// no forwarded headers
-		c.Request = httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
+		c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/auth", nil)
 
 		_, _, _, err := getForwardedTarget(c, config.AuthHeaderSourceForwarded)
 		require.Error(t, err)
@@ -355,7 +355,7 @@ func Test_getForwardedTarget(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 
 		// no forwarded headers
-		c.Request = httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
+		c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/auth", nil)
 		m, h, u, err := getForwardedTarget(c, config.AuthHeaderSourceAuto)
 		require.NoError(t, err)
 		assert.Equal(t, http.MethodGet, m)
@@ -368,7 +368,7 @@ func Test_getForwardedTarget(t *testing.T) {
 		c, _ := gin.CreateTestContext(w)
 
 		// no forwarded headers
-		c.Request = httptest.NewRequest(http.MethodPost, "/v1/auth/hello", nil)
+		c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodPost, "/v1/auth/hello", nil)
 		c.Request.Host = "request.host.local"
 		m, h, u, err := getForwardedTarget(c, config.AuthHeaderSourceAuto)
 		require.NoError(t, err)
@@ -381,7 +381,7 @@ func Test_getForwardedTarget(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 
-		req := httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/auth", nil)
 		req.Header.Set("X-Original-Method", http.MethodGet)
 		req.Header.Set("X-Original-URI", "/get?x=1")
 		req.Header.Set("X-Original-URL", "http://echo.127.0.0.1.nip.io:30180/get?x=1")
@@ -398,7 +398,7 @@ func Test_getForwardedTarget(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 
-		req := httptest.NewRequest(http.MethodGet, "/v1/auth/abc", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/auth/abc", nil)
 		req.Host = "request.host.local"
 
 		// forwarded headers
@@ -423,7 +423,7 @@ func Test_getForwardedTarget(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 
-		req := httptest.NewRequest(http.MethodDelete, "/v1/auth/api/v1/item?id=9", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodDelete, "/v1/auth/api/v1/item?id=9", nil)
 		req.Host = "svc.request.local"
 		c.Request = req
 
@@ -438,7 +438,7 @@ func Test_getForwardedTarget(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 
-		req := httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/auth", nil)
 		req.Header.Set("X-Original-Method", http.MethodGet)
 		// no X-Original-URI on purpose
 		req.Header.Set("X-Original-URL", "http://echo.127.0.0.1.nip.io:30180/some/path?q=42")
@@ -456,7 +456,7 @@ func Test_getForwardedTarget(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 
-		req := httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/auth", nil)
 		req.Header.Set("X-Original-Method", http.MethodGet)
 		req.Header.Set("X-Original-URI", "/get")
 		req.Header.Set("X-Original-URL", "http://%/bad") // force parse error
@@ -471,7 +471,7 @@ func Test_getForwardedTarget(t *testing.T) {
 		w := httptest.NewRecorder()
 		c, _ := gin.CreateTestContext(w)
 
-		req := httptest.NewRequest(http.MethodGet, "/v1/auth", nil)
+		req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/v1/auth", nil)
 		req.Header.Set("X-Original-Method", http.MethodGet)
 		req.Header.Set("X-Original-URI", "/get")
 		c.Request = req

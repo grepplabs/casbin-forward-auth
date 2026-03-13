@@ -1012,7 +1012,7 @@ func ctxWithHeaders(t *testing.T, set func(hdr *map[string][]string)) *gin.Conte
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
-	req := httptest.NewRequest(http.MethodGet, "/whatever", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/whatever", nil)
 	if set != nil {
 		// Allow caller to set multiple or repeated headers.
 		m := map[string][]string{}
@@ -1032,7 +1032,7 @@ func ctxWithBasicAuth(t *testing.T, username, password string, withAuth bool) *g
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
-	req := httptest.NewRequest(http.MethodGet, "/whatever", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/whatever", nil)
 	if withAuth {
 		req.SetBasicAuth(username, password)
 	}
@@ -1044,7 +1044,7 @@ func ctxWithPathParam(t *testing.T, key, val string) *gin.Context {
 	t.Helper()
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/whatever", nil)
+	c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/whatever", nil)
 	if key != "" {
 		c.Params = gin.Params{gin.Param{Key: key, Value: val}}
 	}
@@ -1054,7 +1054,7 @@ func ctxWithQuery(t *testing.T, rawQuery string) *gin.Context {
 	t.Helper()
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	req := httptest.NewRequest(http.MethodGet, "/whatever?"+rawQuery, nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/whatever?"+rawQuery, nil)
 	c.Request = req
 	return c
 }
@@ -1063,7 +1063,7 @@ func ctxWithAuth(t *testing.T, auth string) *gin.Context {
 	t.Helper()
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req := httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/", nil)
 	if auth != "" {
 		req.Header.Set("Authorization", auth)
 	}
@@ -1075,14 +1075,14 @@ func ctxEmpty(t *testing.T) *gin.Context {
 	t.Helper()
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
-	c.Request = httptest.NewRequest(http.MethodGet, "/whatever", nil)
+	c.Request = httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/whatever", nil)
 	return c
 }
 
 func ctxWithURL(t *testing.T, method, rawURL string) *gin.Context {
 	t.Helper()
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest(method, rawURL, nil)
+	req := httptest.NewRequestWithContext(t.Context(), method, rawURL, nil)
 	c, _ := gin.CreateTestContext(w)
 	c.Request = req
 	return c
