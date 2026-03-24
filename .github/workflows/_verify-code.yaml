@@ -19,7 +19,7 @@ jobs:
           check-latest: true
           cache: true
 
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
         with:
           version: 'v3.19.0'
 
