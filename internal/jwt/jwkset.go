@@ -78,11 +78,11 @@ func newHttpJWKSet(ctx context.Context, config config.JWTConfig) (jwk.Set, error
 
 func newHTTPClientForJWKS(cfg config.JWTConfig) (*http.Client, error) {
 	sl := slog.New(slogzap.Option{Logger: zlog.LogSink}.NewZapHandler())
-	tlsClientConfigFunc, err := tlsclientconfig.GetTLSClientConfigFunc(sl, &cfg.TLS)
+	tlsClientConfig, err := tlsclientconfig.GetTLSClientConfig(sl, &cfg.TLS)
 	if err != nil {
 		return nil, fmt.Errorf("create tls client config: %w", err)
 	}
-	transport := tlsclient.NewDefaultRoundTripper(tlsclient.WithClientTLSConfig(tlsClientConfigFunc()))
+	transport := tlsclient.NewDefaultRoundTripper(tlsclient.WithClientTLSConfig(tlsClientConfig))
 	client := &http.Client{Transport: transport}
 	return client, nil
 }

@@ -11,7 +11,7 @@ require (
 	github.com/go-playground/validator/v10 v10.30.2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/grepplabs/casbin-kube v0.2.1
-	github.com/grepplabs/cert-source v0.0.9
+	github.com/grepplabs/cert-source v0.1.0
 	github.com/grepplabs/loggo v0.0.4
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0
 	github.com/grpc-ecosystem/go-grpc-middleware/providers/prometheus v1.1.0
