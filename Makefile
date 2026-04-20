@@ -8,7 +8,7 @@ VERSION       ?= $(shell git describe --tags --always --dirty)
 TAG :=
 CHART_FILE := charts/casbin-forward-auth/Chart.yaml
 
-GOLANGCI_LINT_VERSION := v2.11.3
+GOLANGCI_LINT_VERSION := v2.11.4
 
 DOCKER_BUILD_ARGS ?=
 LOCAL_IMAGE := local/casbin-forward-auth:latest
