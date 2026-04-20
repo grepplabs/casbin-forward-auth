@@ -21,7 +21,7 @@ jobs:
 
       - uses: azure/setup-helm@v5
         with:
-          version: 'v3.19.0'
+          version: 'v3.20.2'
 
       - name: Install the latest version of kind
         shell: bash
@@ -38,7 +38,7 @@ jobs:
       - name: Run linter
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.11.3
+          version: v2.11.4
 
       - name: Test
         run: make test
