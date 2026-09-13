@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/json"
@@ -11,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"math/big"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -165,8 +167,15 @@ func TestNewJWKSet_LoadsFromHTTPServerTLS(t *testing.T) {
 	jwksBytes, err := os.ReadFile(publicPath)
 	require.NoError(t, err)
 
+	serverCertPath := filepath.Join(tmpDir, "server-cert.pem")
+	serverKeyPath := filepath.Join(tmpDir, "server-key.pem")
+	_, _, err = generateSelfSignedCert(serverCertPath, serverKeyPath)
+	require.NoError(t, err)
+	serverCert, err := tls.LoadX509KeyPair(serverCertPath, serverKeyPath)
+	require.NoError(t, err)
+
 	const certsPath = "/realms/master/protocol/openid-connect/certs"
-	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -178,9 +187,11 @@ func TestNewJWKSet_LoadsFromHTTPServerTLS(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write(jwksBytes)
 	}))
+	server.TLS = &tls.Config{
+		Certificates: []tls.Certificate{serverCert},
+	}
+	server.StartTLS()
 	defer server.Close()
-
-	rootCA := storeTLSServerCertPEM(t, server)
 
 	cfg := config.JWTConfig{
 		Enabled:     true,
@@ -191,7 +202,7 @@ func TestNewJWKSet_LoadsFromHTTPServerTLS(t *testing.T) {
 		TLS: tlsconfig.TLSClientConfig{
 			Enable: true,
 			File: tlsconfig.TLSClientFiles{
-				RootCAs: rootCA,
+				RootCAs: serverCertPath,
 			},
 		},
 	}
@@ -210,24 +221,6 @@ func TestNewJWKSet_LoadsFromHTTPServerTLS(t *testing.T) {
 	loadedKID, ok := loadedKey.KeyID()
 	require.True(t, ok)
 	assert.Equal(t, origKID, loadedKID)
-}
-
-func storeTLSServerCertPEM(t *testing.T, server *httptest.Server) string {
-	t.Helper()
-
-	tmpDir := t.TempDir()
-	certPath := filepath.Join(tmpDir, "server-cert.pem")
-
-	cert := server.Certificate()
-	certPEM := pem.EncodeToMemory(&pem.Block{
-		Type:  "CERTIFICATE",
-		Bytes: cert.Raw,
-	})
-
-	if err := os.WriteFile(certPath, certPEM, 0o600); err != nil {
-		t.Fatalf("failed to write server certificate to %s: %v", certPath, err)
-	}
-	return certPath
 }
 
 func TestNewJWKSet_LoadsFromFileURL(t *testing.T) {
@@ -455,7 +448,11 @@ func generateSelfSignedCert(certPath, keyPath string) (*x509.Certificate, *rsa.P
 		},
 		NotBefore: time.Now().Add(-time.Hour),
 		NotAfter:  time.Now().Add(365 * 24 * time.Hour), // valid for 1 year
-		KeyUsage:  x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment,
+		KeyUsage:  x509.KeyUsageDigitalSignature | x509.KeyUsageKeyEncipherment | x509.KeyUsageCertSign,
+		DNSNames:  []string{"example.local", "localhost"},
+		IPAddresses: []net.IP{
+			net.ParseIP("127.0.0.1"),
+		},
 		ExtKeyUsage: []x509.ExtKeyUsage{
 			x509.ExtKeyUsageServerAuth,
 			x509.ExtKeyUsageClientAuth,

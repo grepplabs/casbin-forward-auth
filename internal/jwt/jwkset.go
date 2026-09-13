@@ -40,12 +40,17 @@ func isFileSet(config *config.JWTConfig) bool {
 
 func newHttpJWKSet(ctx context.Context, config config.JWTConfig) (jwk.Set, error) {
 	clientOptions := []httprc.NewClientOption{httprc.WithTraceSink(tracesink.NewSlog(newZapSlogLogger()))}
+	registerOptions := []jwk.RegisterOption{
+		jwk.WithMaxInterval(config.MaxRefreshInterval),
+		jwk.WithMinInterval(config.MinRefreshInterval),
+		jwk.WithWaitReady(false), // register non-blocking
+	}
 	if config.TLS.Enable && strings.HasPrefix(config.JWKSURL, "https://") {
 		httpClient, err := newHTTPClientForJWKS(config)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create http client for jwks: %w", err)
 		}
-		clientOptions = append(clientOptions, httprc.WithHTTPClient(httpClient))
+		registerOptions = append(registerOptions, jwk.WithHTTPClient(httpClient))
 	}
 	c, err := jwk.NewCache(
 		ctx,
@@ -56,11 +61,7 @@ func newHttpJWKSet(ctx context.Context, config config.JWTConfig) (jwk.Set, error
 	}
 	zlog.Infof("registering new jwk cache for %s", config.JWKSURL)
 
-	err = c.Register(ctx, config.JWKSURL,
-		jwk.WithMaxInterval(config.MaxRefreshInterval),
-		jwk.WithMinInterval(config.MinRefreshInterval),
-		jwk.WithWaitReady(false), // register non-blocking
-	)
+	err = c.Register(ctx, config.JWKSURL, registerOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("register jwk set: %w", err)
 	}
