@@ -4,7 +4,7 @@ go 1.26.8
 
 require (
 	github.com/casbin/casbin/v3 v3.11.0
-	github.com/envoyproxy/go-control-plane/envoy v1.37.0
+	github.com/envoyproxy/go-control-plane/envoy v1.39.0
 	github.com/expr-lang/expr v1.17.8
 	github.com/gin-contrib/zap v1.1.8
 	github.com/gin-gonic/gin v1.12.0
